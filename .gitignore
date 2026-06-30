@@ -1,0 +1,15 @@
+node_modules/
+.env
+.expo/
+dist/
+build/
+.DS_Store
+
+# Sensitive files - DO NOT PUSH
+cert_base64.txt
+profile_base64.txt
+app.txt
+nayi_profile_secret.txt
+*.p12
+*.mobileprovision
+distribution.p12

@@ -1,0 +1,28 @@
+runtime: nodejs22
+env: standard
+
+instance_class: F1
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 2
+  target_cpu_utilization: 0.65
+
+env_variables:
+  NODE_ENV: "production"
+  PORT: "8080"
+  MONGO_URI: "mongodb+srv://jspcorporationptyltd:jspcorporationptyltd@cluster0.j1ehmld.mongodb.net/laundry"
+  JWT_SECRET: "jdhjkjksdfgjkdshufh83475gf7485tygfre7"
+  JWT_EXPIRE: "7d"
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  SMTP_EMAIL: "your-email@gmail.com"
+  SMTP_PASSWORD: "your-app-password"
+  FROM_EMAIL: "noreply@susalabs.com"
+  FROM_NAME: "SusaLabs Laundry"
+  FRONTEND_URL: "https://jspcorporation-eedc8.web.app"
+
+handlers:
+  - url: /.*
+    script: auto
+    secure: always

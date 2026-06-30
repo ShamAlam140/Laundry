@@ -1,0 +1,4 @@
+1.Be able to add an invoice for customers who dont order and we create
+2. Assign master items to customer for me to be able to add the pricing in for them and have it set to each customer
+3. be able to edit invoices for any mistakes or 
+4. 4. have invoices pending when they are automatically set and then (waiting for approval) then when I press send the customer recieves it
