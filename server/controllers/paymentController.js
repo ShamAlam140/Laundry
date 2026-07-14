@@ -102,3 +102,31 @@ exports.getPayments = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Delete payment
+// @route   DELETE /api/payments/:id
+// @access  Private (Admin only)
+exports.deletePayment = async (req, res, next) => {
+    try {
+        const payment = await Payment.findById(req.params.id);
+        if (!payment) {
+            return res.status(404).json({ success: false, message: 'Payment not found' });
+        }
+
+        // Find associated invoice
+        const invoice = await Invoice.findById(payment.invoice);
+        if (invoice) {
+            // Deduct payment amount
+            invoice.paidAmount = Math.max(0, invoice.paidAmount - payment.amount);
+            invoice.balanceDue = invoice.totalAmount - invoice.paidAmount;
+            invoice.paymentStatus = invoice.paidAmount <= 0 ? 'unpaid' : (invoice.balanceDue <= 0 ? 'paid' : 'partial');
+            await invoice.save();
+        }
+
+        await Payment.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({ success: true, message: 'Payment deleted and invoice updated successfully' });
+    } catch (error) {
+        next(error);
+    }
+};

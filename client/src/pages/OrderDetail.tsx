@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -11,8 +11,9 @@ import {
     HiOutlineCalendar,
     HiOutlinePrinter,
     HiOutlineX,
+    HiOutlineDocumentText,
 } from 'react-icons/hi';
-import { HiOutlineCube } from 'react-icons/hi2';
+import { HiOutlineCube, HiOutlineTruck } from 'react-icons/hi2';
 
 interface InventoryItem {
     _id: string;
@@ -53,6 +54,9 @@ const OrderDetail = () => {
     const [inventoryUsage, setInventoryUsage] = useState<InventoryUsageEntry[]>([]);
     const [loadingInventory, setLoadingInventory] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [showShipModal, setShowShipModal] = useState(false);
+    const [shippedQuantities, setShippedQuantities] = useState<Record<string, number>>({});
+    const [shipping, setShipping] = useState(false);
 
     const fetchOrder = async () => {
         try {
@@ -67,6 +71,15 @@ const OrderDetail = () => {
     };
 
     useEffect(() => { fetchOrder(); }, [id]);
+
+    const location = useLocation();
+    useEffect(() => {
+        if (order && location.state?.openShip && order.status === 'packed' && !order.isShipped) {
+            // Clear location state to prevent repeating on refresh
+            window.history.replaceState({}, document.title);
+            openShipModal();
+        }
+    }, [order, location.state]);
 
     const fetchInventory = async () => {
         try {
@@ -144,6 +157,63 @@ const OrderDetail = () => {
             toast.error(err.response?.data?.message || 'Failed to update status');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Ship order modal functions
+    const openShipModal = () => {
+        if (!order) return;
+        const initialQtys: Record<string, number> = {};
+        order.items?.forEach((item: any) => {
+            initialQtys[item._id] = item.quantity;
+        });
+        setShippedQuantities(initialQtys);
+        setShowShipModal(true);
+    };
+
+    const closeShipModal = () => {
+        setShowShipModal(false);
+        setShippedQuantities({});
+    };
+
+    const handleShipQtyChange = (itemId: string, val: number, max: number) => {
+        const cleanVal = Math.max(0, Math.min(max, val));
+        setShippedQuantities((prev) => ({
+            ...prev,
+            [itemId]: cleanVal,
+        }));
+    };
+
+    const shipTotals = useMemo(() => {
+        if (!order) return { subtotal: 0, taxAmount: 0, discountAmount: 0, totalAmount: 0 };
+        const billable = order.items.filter((item: any) => item.serviceType !== 'manual');
+        const subtotal = billable.reduce((sum: number, item: any) => {
+            const shippedQty = shippedQuantities[item._id] ?? item.quantity;
+            return sum + shippedQty * item.pricePerUnit;
+        }, 0);
+        const taxAmount = (subtotal * (order.taxPercent || 0)) / 100;
+        const discountAmount = (subtotal * (order.discountPercent || 0)) / 100;
+        const totalAmount = subtotal + taxAmount - discountAmount + (order.serviceCharge || 0);
+        return { subtotal, taxAmount, discountAmount, totalAmount };
+    }, [order, shippedQuantities]);
+
+    const handleConfirmShipment = async () => {
+        if (!order) return;
+        try {
+            setShipping(true);
+            const items = Object.entries(shippedQuantities).map(([itemId, shippedQuantity]) => ({
+                itemId,
+                shippedQuantity,
+            }));
+
+            await api.post(`/orders/${order._id}/ship`, { items });
+            toast.success('Order shipped & Invoice generated!');
+            closeShipModal();
+            fetchOrder();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to ship order');
+        } finally {
+            setShipping(false);
         }
     };
 
@@ -386,6 +456,38 @@ const OrderDetail = () => {
                             ))}
                         </div>
                     )}
+
+                    {/* Ship & Create Invoice button — only for packed, un-shipped orders */}
+                    {order.status === 'packed' && !order.isShipped && (
+                        <div className="mt-4">
+                            <button
+                                onClick={openShipModal}
+                                disabled={shipping}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2a5e] text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed"
+                            >
+                                {shipping ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <HiOutlineTruck className="w-5 h-5" />
+                                )}
+                                Ship & Create Invoice
+                            </button>
+                            <p className="text-xs text-slate-500 mt-2">Invoice will be generated pending approval.</p>
+                        </div>
+                    )}
+
+                    {/* Already shipped badge */}
+                    {order.isShipped && (
+                        <div className="mt-4">
+                            <button
+                                onClick={() => navigate('/invoices?tab=pending', { state: { searchOrderId: order.orderId, tab: 'pending' } })}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-sm font-semibold rounded-xl transition-all shadow-sm"
+                            >
+                                <HiOutlineDocumentText className="w-5 h-5 text-emerald-600" />
+                                Shipped & Invoiced
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -446,7 +548,7 @@ const OrderDetail = () => {
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-slate-600">Total Refunded:</span>
-                            <span className="text-slate-900 font-semibold">{currency}{order.totalRefundAmount?.toLocaleString()}</span>
+                            <span className="text-slate-900 font-semibold">{currency}{order.totalRefundAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     </div>
                     <button
@@ -486,7 +588,7 @@ const OrderDetail = () => {
                                 </p>
                                 {item.potentialRefundAmount && (
                                     <p className="text-xs text-slate-500 mt-1">
-                                        Potential refund: {currency}{item.potentialRefundAmount.toLocaleString()}
+                                        Potential refund: {currency}{item.potentialRefundAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </p>
                                 )}
                             </div>
@@ -571,7 +673,24 @@ const OrderDetail = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3 text-center text-sm text-slate-600">{item.quantity} {item.unit}</td>
+                                        <td className="px-5 py-3 text-center">
+                                            {item.shippedQuantity !== null && item.shippedQuantity !== undefined ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-[12px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                                                        {item.shippedQuantity} {item.unit}
+                                                    </span>
+                                                    {item.shippedQuantity !== item.quantity && (
+                                                        <span className="text-[10px] text-slate-500 font-medium bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                            Ordered: {item.quantity}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm text-slate-700 font-medium">
+                                                    {item.quantity} {item.unit}
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-5 py-3 text-right text-sm text-slate-600">{currency}{item.pricePerUnit}</td>
                                         <td className="px-5 py-3 text-right text-sm text-slate-900 font-medium">{currency}{item.subtotal}</td>
                                     </tr>
@@ -631,14 +750,14 @@ const OrderDetail = () => {
                     <div className="rounded-2xl border border-slate-200 bg-white p-5">
                         <h3 className="text-sm font-semibold text-slate-900 mb-3">Pricing</h3>
                         <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="text-slate-900">{currency}{order.subtotal}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Tax ({order.taxPercent}%)</span><span className="text-slate-900">+{currency}{order.taxAmount}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="text-slate-900">{currency}{Number(order.subtotal || 0).toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Tax ({order.taxPercent}%)</span><span className="text-slate-900">+{currency}{Number(order.taxAmount || 0).toFixed(2)}</span></div>
                             {order.discountAmount > 0 && (
-                                <div className="flex justify-between"><span className="text-slate-500">Discount ({order.discountPercent}%)</span><span className="text-emerald-400">-{currency}{order.discountAmount}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Discount ({order.discountPercent}%)</span><span className="text-emerald-400">-{currency}{Number(order.discountAmount || 0).toFixed(2)}</span></div>
                             )}
                             <div className="flex justify-between pt-2 border-t border-slate-200 font-bold text-base">
                                 <span className="text-slate-900">Total</span>
-                                <span className="text-cyan-600">{currency}{order.totalAmount?.toLocaleString()}</span>
+                                <span className="text-cyan-600">{currency}{Number(order.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                     </div>
@@ -649,8 +768,8 @@ const OrderDetail = () => {
                             <h3 className="text-sm font-semibold text-slate-900 mb-3">Invoice</h3>
                             <p className="text-cyan-600 font-medium">{order.invoice.invoiceId}</p>
                             <div className="mt-2 space-y-1 text-sm">
-                                <div className="flex justify-between"><span className="text-slate-500">Paid</span><span className="text-emerald-400">{currency}{order.invoice.paidAmount}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-500">Due</span><span className="text-red-400">{currency}{order.invoice.balanceDue}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Paid</span><span className="text-emerald-400">{currency}{Number(order.invoice.paidAmount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Due</span><span className="text-red-400">{currency}{Number(order.invoice.balanceDue || 0).toFixed(2)}</span></div>
                             </div>
                             <span className={`inline-block mt-2 px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${order.invoice.paymentStatus === 'paid'
                                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
@@ -774,6 +893,140 @@ const OrderDetail = () => {
                                 className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/30 disabled:opacity-50"
                             >
                                 {submitting ? 'Updating...' : `Update to ${pendingStatus}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── SHIP & INVOICE MODAL ── */}
+            {showShipModal && order && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-4xl max-h-[90vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-left">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">Ship Order & Generate Invoice: #{order.orderId}</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Customer: <span className="font-semibold text-slate-700">{order.customer?.name}</span> ({order.customer?.customerId})
+                                </p>
+                            </div>
+                            <button onClick={closeShipModal} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                                <HiOutlineX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                            <p className="text-xs text-slate-500">
+                                Enter the quantity of items being shipped. Any difference from the ordered quantity will be tracked.
+                            </p>
+
+                            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase">
+                                            <th className="px-4 py-3 text-left">Item Name</th>
+                                            <th className="px-4 py-3 text-center">Unit</th>
+                                            <th className="px-4 py-3 text-right">Price</th>
+                                            <th className="px-4 py-3 text-center">Ordered Qty</th>
+                                            <th className="px-4 py-3 text-center">Shipped Qty</th>
+                                            <th className="px-4 py-3 text-right">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {order.items?.filter((item: any) => item.serviceType === 'manual' || !item.service).map((item: any) => {
+                                            const qty = shippedQuantities[item._id] ?? item.quantity;
+                                            return (
+                                                <tr key={item._id} className="hover:bg-slate-50/50">
+                                                    <td className="px-4 py-3.5 font-medium text-slate-900">
+                                                        {item.itemName || item.serviceName}
+                                                        {item.serviceType === 'manual' && (
+                                                            <span className="ml-2 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded">Manual</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-center text-slate-600 capitalize">{item.unit}</td>
+                                                    <td className="px-4 py-3.5 text-right text-slate-600">
+                                                        {item.serviceType === 'manual' ? (
+                                                            <span className="text-slate-400 line-through">{currency}{item.pricePerUnit}</span>
+                                                        ) : (
+                                                            `${currency}${item.pricePerUnit}`
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-center font-semibold text-slate-700">{item.quantity}</td>
+                                                    <td className="px-4 py-3.5 text-center">
+                                                        <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-1">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max={item.quantity}
+                                                                value={qty}
+                                                                onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)}
+                                                                className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-center text-sm font-bold focus:outline-none focus:border-cyan-500"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                                                        {item.serviceType === 'manual' ? (
+                                                            <span className="text-slate-400">Not Billed</span>
+                                                        ) : (
+                                                            `${currency}${(qty * item.pricePerUnit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Billing details */}
+                            <div className="flex flex-col lg:flex-row gap-6">
+                                <div className="flex-1 bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                                    <h4 className="font-bold text-slate-800 mb-2 uppercase tracking-wide">What happens next?</h4>
+                                    <p className="mb-2">Confirming shipment will finalize the quantities and generate an invoice <strong>pending approval</strong>.</p>
+                                    <p className="font-semibold text-cyan-700">ℹ️ The invoice will appear in the Invoices page under the "Pending Approval" tab for review.</p>
+                                </div>
+                                <div className="w-full lg:w-80 bg-[#1c2a5e]/5 rounded-2xl p-5 border border-[#1c2a5e]/10 space-y-3">
+                                    <div className="flex justify-between text-xs text-slate-605">
+                                        <span>Subtotal:</span>
+                                        <span className="font-semibold text-slate-900">{currency}{shipTotals.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Tax ({order.taxPercent || 0}%):</span>
+                                        <span className="font-semibold text-slate-900">{currency}{shipTotals.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-655 text-red-650">
+                                        <span>Discount ({order.discountPercent || 0}%):</span>
+                                        <span className="font-semibold">-{currency}{shipTotals.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Service Charge:</span>
+                                        <span className="font-semibold text-slate-900">{currency}{(order.serviceCharge || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="border-t border-slate-200 my-2 pt-2 flex justify-between text-sm font-bold text-slate-900">
+                                        <span>Invoice Total:</span>
+                                        <span className="text-cyan-700">{currency}{shipTotals.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+                            <button onClick={closeShipModal} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmShipment}
+                                disabled={shipping}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-[#1c2a5e] text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed"
+                            >
+                                {shipping ? (
+                                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Shipping...</>
+                                ) : (
+                                    <><HiOutlineTruck className="w-5 h-5" /> Confirm & Ship</>
+                                )}
                             </button>
                         </div>
                     </div>

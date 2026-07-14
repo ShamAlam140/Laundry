@@ -18,8 +18,16 @@ exports.getMigratedInvoices = async (req, res, next) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const total = await MigratedInvoice.countDocuments(filter);
+        
+        // Calculate total amount sum
+        const totalAmountAggregate = await MigratedInvoice.aggregate([
+            { $match: filter },
+            { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+        ]);
+        const totalAmountSum = totalAmountAggregate[0]?.total || 0;
+
         const invoices = await MigratedInvoice.find(filter)
-            .sort('-invoiceDate')
+            .sort({ invoiceDate: -1, createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
@@ -28,6 +36,7 @@ exports.getMigratedInvoices = async (req, res, next) => {
             count: invoices.length,
             total,
             totalPages: Math.ceil(total / parseInt(limit)),
+            totalAmountSum,
             data: invoices,
         });
     } catch (error) {
@@ -60,28 +69,53 @@ exports.importMigratedInvoices = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Invalid payload. Expecting an array of invoices' });
         }
 
-        let importedCount = 0;
+        const invoiceNumbers = invoices.map(inv => String(inv.invoiceNumber).trim());
+        
+        // Find existing invoices in bulk
+        const existingInvoices = await MigratedInvoice.find({ 
+            invoiceNumber: { $in: invoiceNumbers } 
+        }).select('invoiceNumber');
+        
+        const existingNumbersSet = new Set(existingInvoices.map(inv => String(inv.invoiceNumber).trim()));
+
+        const toInsert = [];
         let skippedCount = 0;
-        const errors = [];
 
         for (const invData of invoices) {
-            try {
-                // Check if invoice number already exists
-                const existing = await MigratedInvoice.findOne({ invoiceNumber: invData.invoiceNumber });
-                if (existing) {
-                    skippedCount++;
-                    continue;
-                }
-
-                // Add creator
+            const num = String(invData.invoiceNumber).trim();
+            if (existingNumbersSet.has(num)) {
+                skippedCount++;
+            } else {
                 if (req.user) {
                     invData.createdBy = req.user._id;
                 }
+                toInsert.push(invData);
+            }
+        }
 
-                await MigratedInvoice.create(invData);
-                importedCount++;
+        let importedCount = 0;
+        const errors = [];
+
+        if (toInsert.length > 0) {
+            try {
+                const result = await MigratedInvoice.insertMany(toInsert, { ordered: false });
+                importedCount = result.length;
             } catch (err) {
-                errors.push({ invoiceNumber: invData.invoiceNumber, error: err.message });
+                if (err.insertedDocs) {
+                    importedCount = err.insertedDocs.length;
+                } else if (err.result && err.result.nInserted) {
+                    importedCount = err.result.nInserted;
+                }
+                if (err.writeErrors) {
+                    err.writeErrors.forEach(we => {
+                        errors.push({ 
+                            invoiceNumber: toInsert[we.index]?.invoiceNumber, 
+                            error: we.errmsg || 'Duplicate key or validation error' 
+                        });
+                    });
+                } else {
+                    errors.push({ error: err.message });
+                }
             }
         }
 

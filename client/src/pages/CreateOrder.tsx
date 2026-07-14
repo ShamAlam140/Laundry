@@ -9,8 +9,8 @@ import {
     HiOutlinePlusCircle,
     HiOutlineTrash,
     HiOutlineUpload,
+    HiOutlineX,
 } from 'react-icons/hi';
-import { HiMinus, HiPlus } from 'react-icons/hi2';
 import BulkOrderImport from '../components/order/BulkOrderImport';
 
 const serviceTypeLabels: Record<string, string> = {
@@ -76,6 +76,7 @@ const CreateOrder = () => {
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
     const [items, setItems] = useState<IOrderItem[]>([]);
+    const [serviceSearch, setServiceSearch] = useState('');
     const [manualItems, setManualItems] = useState<Array<{
         itemType: string;
         itemName: string;
@@ -109,7 +110,19 @@ const CreateOrder = () => {
             const res = await api.get('/services', {
                 params: customerId ? { customer: customerId, isActive: true } : { isActive: true },
             });
-            setServices(res.data.data);
+            const fetched = res.data.data;
+            setServices(fetched);
+            setItems(fetched.map((s: IService) => ({
+                service: s._id,
+                serviceName: s.name,
+                serviceType: s.serviceType,
+                itemType: 'Linen', // Default category
+                itemName: s.name,
+                quantity: 0,
+                unit: s.unit,
+                pricePerUnit: s.pricePerUnit,
+                subtotal: 0,
+            })));
         } catch {
             toast.error('Failed to load services');
         }
@@ -134,7 +147,7 @@ const CreateOrder = () => {
     };
 
     const selectCustomer = (c: ICustomer) => {
-        if (selectedCustomer && selectedCustomer._id !== c._id && items.length > 0) {
+        if (selectedCustomer && selectedCustomer._id !== c._id && items.some(i => i.quantity > 0)) {
             setItems([]);
         }
         setSelectedCustomer(c);
@@ -143,47 +156,32 @@ const CreateOrder = () => {
         fetchServices(c._id);
     };
 
-    const addService = (service: IService) => {
-        const exists = items.find((i) => i.service === service._id);
-        if (exists) {
-            setItems(items.map((i) =>
-                i.service === service._id
-                    ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.pricePerUnit }
-                    : i
-            ));
-        } else {
-            setItems([...items, {
-                service: service._id,
-                serviceName: service.name,
-                serviceType: service.serviceType,
-                itemType: 'Clothing', // Default item type
-                itemName: service.name, // Default item name
-                quantity: 1,
-                unit: service.unit,
-                pricePerUnit: service.pricePerUnit,
-                subtotal: service.pricePerUnit,
-            }]);
-        }
+
+    const updateItemTypeByService = (serviceId: string | undefined, itemType: string) => {
+        if (!serviceId) return;
+        setItems(items.map((item) => item.service === serviceId ? { ...item, itemType: itemType as any } : item));
     };
 
-    const updateQty = (index: number, delta: number) => {
-        setItems(items.map((item, i) => {
-            if (i !== index) return item;
-            const newQty = Math.max(1, item.quantity + delta);
-            return { ...item, quantity: newQty, subtotal: newQty * item.pricePerUnit };
+    const updateItemNameByService = (serviceId: string | undefined, itemName: string) => {
+        if (!serviceId) return;
+        setItems(items.map((item) => item.service === serviceId ? { ...item, itemName } : item));
+    };
+
+    const updatePriceByService = (serviceId: string | undefined, price: number) => {
+        if (!serviceId) return;
+        setItems(items.map((item) => {
+            if (item.service !== serviceId) return item;
+            return { ...item, pricePerUnit: price, subtotal: item.quantity * price };
         }));
     };
 
-    const updateItemType = (index: number, itemType: string) => {
-        setItems(items.map((item, i) => i === index ? { ...item, itemType: itemType as any } : item));
-    };
-
-    const updateItemName = (index: number, itemName: string) => {
-        setItems(items.map((item, i) => i === index ? { ...item, itemName } : item));
-    };
-
-    const removeItem = (index: number) => {
-        setItems(items.filter((_, i) => i !== index));
+    const removeServiceItem = (serviceId: string | undefined) => {
+        if (!serviceId) return;
+        setItems(items.map((item) =>
+            item.service === serviceId
+                ? { ...item, quantity: 0, subtotal: 0 }
+                : item
+        ));
     };
 
     const addManualItem = () => {
@@ -271,7 +269,8 @@ const CreateOrder = () => {
 
     const handleSubmit = async () => {
         if (!selectedCustomer) { toast.error('Please select a customer'); return; }
-        if (items.length === 0 && manualItems.length === 0) { 
+        const activeServiceItems = items.filter(i => i.quantity > 0);
+        if (activeServiceItems.length === 0 && manualItems.length === 0) { 
             toast.error('Please add at least one service or item'); 
             return; 
         }
@@ -280,7 +279,7 @@ const CreateOrder = () => {
         try {
             // Combine service items and manual items
             const allItems = [
-                ...items,
+                ...activeServiceItems,
                 ...manualItems.map(mi => ({
                     service: null, // Manual items don't have service reference
                     serviceName: mi.itemName,
@@ -325,9 +324,9 @@ const CreateOrder = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Left — Form */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-3 space-y-6">
                     {/* Customer Selection */}
                     <div className="rounded-2xl border border-slate-200 bg-white p-5">
                         <h2 className="text-base font-semibold text-slate-900 mb-4">Customer</h2>
@@ -380,31 +379,125 @@ const CreateOrder = () => {
                                 Premium customer selected. Only this customer's linked custom services are shown below.
                             </p>
                         )}
+                        
+                        {services.length > 0 && (
+                            <div className="relative mb-4">
+                                <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search services by name or type..."
+                                    value={serviceSearch}
+                                    onChange={(e) => setServiceSearch(e.target.value)}
+                                    className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-cyan-500"
+                                />
+                                {serviceSearch && (
+                                    <button
+                                        onClick={() => setServiceSearch('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650"
+                                    >
+                                        <HiOutlineX className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {services.length === 0 ? (
                             <div className="text-sm text-slate-500 text-center py-6">No active services available</div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {services.map((s) => (
-                                    <button key={s._id} onClick={() => addService(s)}
-                                        className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-left group">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-slate-900 group-hover:text-cyan-700 transition-colors truncate">
-                                                    {serviceTypeLabels[s.serviceType]?.split(' ')[0]} {s.name}
-                                                </p>
-                                                {s.isCustomerSpecific && (
-                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                                        Custom
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-0.5">{currency}{s.pricePerUnit}/{s.unit}</p>
-                                        </div>
-                                        <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <HiOutlinePlusCircle className="w-5 h-5" />
-                                        </div>
-                                    </button>
-                                ))}
+                            <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                                            <th className="p-3">Service / Type</th>
+                                            <th className="p-3 w-[18%]">Category</th>
+                                            <th className="p-3 w-[22%]">Custom Name</th>
+                                            <th className="p-3 w-[20%]">Price</th>
+                                            <th className="p-3 w-[12%] text-center">Qty</th>
+                                            <th className="p-3 text-right w-[12%]">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {items
+                                            .filter(item => 
+                                                item.serviceName.toLowerCase().includes(serviceSearch.toLowerCase()) ||
+                                                item.serviceType.toLowerCase().includes(serviceSearch.toLowerCase())
+                                            )
+                                            .map((item) => (
+                                                <tr key={item.service} className={`hover:bg-slate-50/50 transition-colors ${item.quantity > 0 ? 'bg-cyan-500/5' : ''}`}>
+                                                    <td className="p-3">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-semibold text-slate-800">{item.serviceName}</span>
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200" style={{ width: 'fit-content' }}>
+                                                                {serviceTypeLabels[item.serviceType] || item.serviceType}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <select
+                                                            value={item.itemType || 'Linen'}
+                                                            onChange={(e) => updateItemTypeByService(item.service, e.target.value)}
+                                                            className="w-full px-1.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-cyan-500 text-xs"
+                                                        >
+                                                            <option value="Clothing">👕 Clothing</option>
+                                                            <option value="Linen">🛏️ Linen</option>
+                                                            <option value="Accessories">👜 Accessories</option>
+                                                            <option value="Special_Items">⭐ Special Items</option>
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <input
+                                                            type="text"
+                                                            value={item.itemName || ''}
+                                                            onChange={(e) => updateItemNameByService(item.service, e.target.value)}
+                                                            placeholder="Custom item name"
+                                                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-cyan-500 text-xs"
+                                                        />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-cyan-500 w-28">
+                                                            <span className="bg-slate-50 border-r border-slate-200 px-1.5 py-1 text-[10px] font-semibold text-slate-400 select-none">
+                                                                {currency.replace('$', '')}
+                                                            </span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                value={item.pricePerUnit === 0 ? '' : item.pricePerUnit}
+                                                                placeholder="0"
+                                                                onChange={(e) => updatePriceByService(item.service, Number(e.target.value))}
+                                                                className="w-full px-1 py-1 outline-none text-slate-900 border-none bg-transparent text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            />
+                                                            <span className="text-[10px] text-slate-400 pr-1.5 select-none">
+                                                                /{item.unit}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <div className="flex items-center justify-center">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                value={item.quantity === 0 ? '' : item.quantity}
+                                                                placeholder="0"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
+                                                                    setItems(items.map(it => {
+                                                                        if (it.service !== item.service) return it;
+                                                                        return { ...it, quantity: val, subtotal: val * it.pricePerUnit };
+                                                                    }));
+                                                                }}
+                                                                className="w-12 py-1 text-center bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-cyan-500 text-xs font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-right font-bold text-slate-900">
+                                                        {currency}{item.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
                     </div>
@@ -530,42 +623,47 @@ const CreateOrder = () => {
                     <div className="sticky top-20 rounded-2xl border border-slate-200 bg-white p-5">
                         <h2 className="text-base font-semibold text-slate-900 mb-4">Order Summary</h2>
 
-                        {items.length === 0 && manualItems.length === 0 ? (
+                        {items.filter(item => item.quantity > 0).length === 0 && manualItems.length === 0 ? (
                             <p className="text-sm text-slate-500 text-center py-8">No items added yet</p>
                         ) : (
                             <div className="space-y-4 mb-5">
                                 {/* Service Items */}
-                                {items.length > 0 && (
+                                {items.filter(item => item.quantity > 0).length > 0 && (
                                     <div>
                                         <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                                             <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
                                             Services
                                         </h3>
                                         <div className="space-y-2">
-                                            {items.map((item, i) => (
-                                                <div key={i} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2">
+                                            {items.filter(item => item.quantity > 0).map((item) => (
+                                                <div key={item.service} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2">
                                                     <div className="flex items-start gap-3">
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-sm text-slate-900 font-medium truncate">{item.serviceName}</p>
+                                                            <p className="text-sm text-slate-900 font-medium truncate">{item.itemName || item.serviceName}</p>
                                                             <p className="text-xs text-slate-500">{currency}{item.pricePerUnit}/{item.unit}</p>
                                                         </div>
-                                                        <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-300 mt-1">
+                                                        <button onClick={() => removeServiceItem(item.service)} className="text-red-400 hover:text-red-300 mt-1">
                                                             <HiOutlineTrash className="w-4 h-4" />
                                                         </button>
                                                     </div>
                                                     
                                                     <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <button onClick={() => updateQty(i, -1)}
-                                                                className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300">
-                                                                <HiMinus className="w-3 h-3" />
-                                                            </button>
-                                                            <span className="text-sm text-slate-900 w-8 text-center font-medium">{item.quantity}</span>
-                                                            <button onClick={() => updateQty(i, 1)}
-                                                                className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300">
-                                                                <HiPlus className="w-3 h-3" />
-                                                            </button>
-                                                            <span className="text-xs text-slate-500 ml-1">× {currency}{item.pricePerUnit}</span>
+                                                        <div className="flex items-center">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                value={item.quantity === 0 ? '' : item.quantity}
+                                                                placeholder="0"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
+                                                                    setItems(items.map(it => {
+                                                                        if (it.service !== item.service) return it;
+                                                                        return { ...it, quantity: val, subtotal: val * it.pricePerUnit };
+                                                                    }));
+                                                                }}
+                                                                className="w-12 py-1 text-center bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-cyan-500 text-xs font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            />
                                                         </div>
                                                         <span className="text-base text-slate-900 font-bold">{currency}{item.subtotal}</span>
                                                     </div>
@@ -576,7 +674,7 @@ const CreateOrder = () => {
                                                             <label className="block text-xs text-slate-500 mb-1">Item Type</label>
                                                             <select
                                                                 value={item.itemType || 'Clothing'}
-                                                                onChange={(e) => updateItemType(i, e.target.value)}
+                                                                onChange={(e) => updateItemTypeByService(item.service, e.target.value)}
                                                                 className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-cyan-500"
                                                             >
                                                                 <option value="Clothing">👕 Clothing</option>
@@ -590,7 +688,7 @@ const CreateOrder = () => {
                                                             <input
                                                                 type="text"
                                                                 value={item.itemName || ''}
-                                                                onChange={(e) => updateItemName(i, e.target.value)}
+                                                                onChange={(e) => updateItemNameByService(item.service, e.target.value)}
                                                                 placeholder="e.g., Shirt, Towel"
                                                                 className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-500"
                                                             />
@@ -682,7 +780,7 @@ const CreateOrder = () => {
 
                         <button
                             onClick={handleSubmit}
-                            disabled={loading || !selectedCustomer || (items.length === 0 && manualItems.length === 0)}
+                            disabled={loading || !selectedCustomer || (items.filter(i => i.quantity > 0).length === 0 && manualItems.length === 0)}
                             className="w-full mt-5 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-md shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loading ? 'Creating...' : 'Create Order'}
@@ -702,7 +800,7 @@ const CreateOrder = () => {
                             <input type="tel" required placeholder="Phone Number" value={newCustomer.phone} onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <input type="email" placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                <input type="email" required placeholder="Email *" value={newCustomer.email} onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
                                 <select value={newCustomer.customerType} onChange={(e) => setNewCustomer({ ...newCustomer, customerType: e.target.value })}
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-cyan-500">

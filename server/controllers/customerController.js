@@ -237,3 +237,94 @@ exports.deleteCustomer = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Bulk import customers
+// @route   POST /api/customers/bulk-import
+// @access  Private (Admin, Manager)
+exports.bulkImportCustomers = async (req, res, next) => {
+    try {
+        const { customers } = req.body;
+        if (!customers || !Array.isArray(customers)) {
+            return res.status(400).json({ success: false, message: 'Invalid payload. Expecting an array of customers' });
+        }
+
+        let successCount = 0;
+        const errors = [];
+
+        // Normalize and query duplicates in bulk
+        const phones = customers.map(c => String(c.phone || '').trim()).filter(Boolean);
+        const emails = customers.map(c => String(c.email || '').trim()).filter(Boolean);
+
+        const existingCustomers = await Customer.find({
+            $or: [
+                { phone: { $in: phones } },
+                { email: { $in: emails } }
+            ]
+        }).select('phone email');
+
+        const existingPhones = new Set(existingCustomers.map(c => String(c.phone).trim()));
+        const existingEmails = new Set(existingCustomers.map(c => String(c.email).trim()));
+
+        for (let i = 0; i < customers.length; i++) {
+            const row = customers[i];
+            const name = String(row.name || '').trim();
+            const phone = String(row.phone || '').trim();
+            const email = String(row.email || '').trim();
+            const address = String(row.address || '').trim();
+            const customerType = String(row.customerType || 'walk-in').trim().toLowerCase();
+            const isPremium = Boolean(row.isPremium);
+            const creditDays = parseInt(row.creditDays) || 0;
+            const notificationFrequency = String(row.notificationFrequency || 'none').trim().toLowerCase();
+
+            // Check mandatory fields
+            if (!name) {
+                errors.push({ rowNumber: i + 1, error: 'Name is required' });
+                continue;
+            }
+            if (!phone) {
+                errors.push({ rowNumber: i + 1, error: 'Phone is required' });
+                continue;
+            }
+            if (!email) {
+                errors.push({ rowNumber: i + 1, error: 'Email is required' });
+                continue;
+            }
+
+            if (existingPhones.has(phone)) {
+                errors.push({ rowNumber: i + 1, error: `Customer with phone "${phone}" already exists` });
+                continue;
+            }
+            if (existingEmails.has(email)) {
+                errors.push({ rowNumber: i + 1, error: `Customer with email "${email}" already exists` });
+                continue;
+            }
+
+            try {
+                await Customer.create({
+                    name,
+                    phone,
+                    email,
+                    address,
+                    customerType,
+                    isPremium,
+                    creditDays,
+                    notificationFrequency
+                });
+                successCount++;
+            } catch (createErr) {
+                errors.push({ rowNumber: i + 1, error: createErr.message });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                successCount,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};

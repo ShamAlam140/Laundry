@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -20,9 +20,11 @@ import {
     HiOutlineTrash,
     HiOutlinePencil,
     HiOutlinePlus,
+    HiCheck,
+    HiOutlineCash,
 } from 'react-icons/hi';
 
-type DatePreset = '' | '7d' | '15d' | '1m';
+type DatePreset = 'today' | 'yesterday' | 'tomorrow' | 'last7' | 'last15' | 'last30' | '';
 type BatchAction = '' | 'view' | 'pdf' | 'print';
 
 const toDateInputValue = (date: Date) => {
@@ -34,6 +36,7 @@ const toDateInputValue = (date: Date) => {
 
 const Invoices = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const location = useLocation();
     const activeTab = searchParams.get('tab') || 'standard';
     const { user } = useAuth();
 
@@ -148,6 +151,20 @@ const Invoices = () => {
             setEditSaving(false);
         }
     };
+    const handleApproveInvoice = async (invoiceId: string) => {
+        try {
+            await api.put(`/invoices/${invoiceId}/approve`);
+            toast.success('Invoice approved successfully!');
+            fetchInvoices();
+            // Refresh detailed invoice view if open
+            if (viewInvoice && viewInvoice._id === invoiceId) {
+                const res = await api.get(`/invoices/${invoiceId}`);
+                setViewInvoice(res.data.data);
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to approve invoice');
+        }
+    };
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -164,6 +181,15 @@ const Invoices = () => {
     const [filterDatePreset, setFilterDatePreset] = useState<DatePreset>('');
     const [showFilters, setShowFilters] = useState(false);
 
+    useEffect(() => {
+        if (location.state && location.state.searchOrderId) {
+            setFilterOrderId(location.state.searchOrderId);
+            if (location.state.tab) {
+                setSearchParams({ tab: location.state.tab });
+            }
+        }
+    }, [location.state, setSearchParams]);
+
     // ── Migrated Invoices States ──
     const [migratedInvoices, setMigratedInvoices] = useState<any[]>([]);
     const [migratedLoading, setMigratedLoading] = useState(false);
@@ -171,6 +197,7 @@ const Invoices = () => {
     const [migratedPage, setMigratedPage] = useState(1);
     const [migratedTotalPages, setMigratedTotalPages] = useState(1);
     const [migratedTotalItems, setMigratedTotalItems] = useState(0);
+    const [migratedTotalAmount, setMigratedTotalAmount] = useState(0);
     const [viewMigratedInvoice, setViewMigratedInvoice] = useState<any>(null);
 
     const fetchMigratedInvoices = async () => {
@@ -185,6 +212,7 @@ const Invoices = () => {
             setMigratedInvoices(res.data.data);
             setMigratedTotalPages(res.data.totalPages || 1);
             setMigratedTotalItems(res.data.total || 0);
+            setMigratedTotalAmount(res.data.totalAmountSum || 0);
         } catch (err) {
             toast.error('Failed to fetch migrated invoices');
         } finally {
@@ -208,7 +236,7 @@ const Invoices = () => {
             mapped[norm] = row[key];
         }
         return {
-            contactName: mapped['contactname'],
+            contactName: mapped['customer'] || mapped['contactname'],
             emailAddress: mapped['emailaddress'],
             poAddressLine1: mapped['poaddressline1'],
             poAddressLine2: mapped['poaddressline2'],
@@ -218,22 +246,22 @@ const Invoices = () => {
             poRegion: mapped['poregion'],
             poPostalCode: mapped['popostalcode'],
             poCountry: mapped['pocountry'],
-            invoiceNumber: mapped['invoicenumber']?.toString(),
-            reference: mapped['reference'],
-            invoiceDate: mapped['invoicedate'],
-            dueDate: mapped['duedate'],
-            inventoryItemCode: mapped['inventoryitemcode'],
-            description: mapped['description'],
-            quantity: mapped['quantity'],
-            unitAmount: mapped['unitamount'],
-            discount: mapped['discount'],
-            accountCode: mapped['accountcode'],
-            taxType: mapped['taxtype'],
+            invoiceNumber: (mapped['invoice#'] || mapped['invoice'] || mapped['invoicenumber'])?.toString()?.trim(),
+            reference: mapped['reference'] || mapped['department'],
+            invoiceDate: mapped['date'] || mapped['invoicedate'],
+            dueDate: mapped['duedate'] || mapped['due-date'],
+            inventoryItemCode: mapped['inventoryitemcode'] || '',
+            description: mapped['description'] || mapped['status'] || 'Imported Invoice',
+            quantity: parseFloat(mapped['quantity']) || 1,
+            unitAmount: parseFloat(mapped['unitamount']) || parseFloat(mapped['amount(aud)']) || parseFloat(mapped['amount']) || 0,
+            discount: parseFloat(mapped['discount']) || 0,
+            accountCode: mapped['accountcode'] || '400',
+            taxType: mapped['taxtype'] || 'GST',
             trackingName1: mapped['trackingname1'],
             trackingOption1: mapped['trackingoption1'],
             trackingName2: mapped['trackingname2'],
             trackingOption2: mapped['trackingoption2'],
-            currency: mapped['currency'],
+            currency: mapped['currency'] || 'AUD',
             brandingTheme: mapped['brandingtheme']
         };
     };
@@ -271,10 +299,60 @@ const Invoices = () => {
                 const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
                 const wsname = wb.SheetNames[0];
                 const ws = wb.Sheets[wsname];
-                const rawData = XLSX.utils.sheet_to_json(ws);
+
+                // Read sheet as array of arrays to dynamically find where headers start
+                const rowsData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                if (rowsData.length === 0) {
+                    toast.error("The file is empty.");
+                    return;
+                }
+
+                // Find header row index
+                let headerRowIndex = 0;
+                for (let i = 0; i < Math.min(rowsData.length, 15); i++) {
+                    const row = rowsData[i];
+                    if (Array.isArray(row)) {
+                        const normalizedCells = row.map(cell => cell ? String(cell).trim().toLowerCase() : '');
+                        const hasInvoice = normalizedCells.some(c => c.includes('invoice'));
+                        const hasDate = normalizedCells.some(c => c.includes('date'));
+                        const hasCustomer = normalizedCells.some(c => c.includes('customer') || c.includes('contact'));
+                        if ((hasInvoice && hasDate) || (hasInvoice && hasCustomer)) {
+                            headerRowIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                const headerRow = rowsData[headerRowIndex];
+                if (!headerRow || headerRow.length === 0) {
+                    toast.error("Could not find table headers in the sheet.");
+                    return;
+                }
+
+                const rawData: any[] = [];
+
+                // Convert data rows below header row to objects
+                for (let i = headerRowIndex + 1; i < rowsData.length; i++) {
+                    const row = rowsData[i];
+                    if (Array.isArray(row) && row.length > 0) {
+                        const obj: any = {};
+                        let hasData = false;
+                        headerRow.forEach((header, index) => {
+                            if (header !== undefined && header !== null && String(header).trim() !== '') {
+                                obj[String(header).trim()] = row[index];
+                                if (row[index] !== undefined && row[index] !== null && row[index] !== '') {
+                                    hasData = true;
+                                }
+                            }
+                        });
+                        if (hasData) {
+                            rawData.push(obj);
+                        }
+                    }
+                }
 
                 if (rawData.length === 0) {
-                    toast.error("The file is empty.");
+                    toast.error("No valid data rows found in the sheet.");
                     return;
                 }
 
@@ -284,12 +362,25 @@ const Invoices = () => {
                 for (const row of rawData as any[]) {
                     const mapped = mapRow(row);
 
-                    if (!mapped.invoiceNumber || !mapped.contactName || !mapped.invoiceDate || !mapped.dueDate) {
+                    const invNum = String(mapped.invoiceNumber || '').trim();
+                    const contactName = String(mapped.contactName || '').trim();
+
+                    // Skip header/footer summary rows
+                    if (
+                        !invNum || 
+                        !contactName || 
+                        invNum.toLowerCase().includes('total') || 
+                        contactName.toLowerCase().includes('total') ||
+                        invNum.toLowerCase().includes('report')
+                    ) {
+                        continue;
+                    }
+
+                    if (!mapped.invoiceDate || !mapped.dueDate) {
                         invalidRows++;
                         continue;
                     }
 
-                    const invNum = mapped.invoiceNumber;
                     const invoiceDate = parseImportDate(mapped.invoiceDate);
                     const dueDate = parseImportDate(mapped.dueDate);
 
@@ -351,12 +442,27 @@ const Invoices = () => {
                     return;
                 }
 
-                const importPromise = api.post('/invoices/migrated/import', { invoices: invoicesToImport });
-                await toast.promise(importPromise, {
-                    loading: 'Importing invoices...',
-                    success: (res: any) => {
+                // Batch size of 500 invoices per request to avoid payload limits
+                const BATCH_SIZE = 500;
+                let importedTotal = 0;
+                let skippedTotal = 0;
+
+                const uploadBatches = async () => {
+                    for (let i = 0; i < invoicesToImport.length; i += BATCH_SIZE) {
+                        const batch = invoicesToImport.slice(i, i + BATCH_SIZE);
+                        const res = await api.post('/invoices/migrated/import', { invoices: batch });
+                        importedTotal += res.data.importedCount || 0;
+                        skippedTotal += res.data.skippedCount || 0;
+                    }
+                    return `Successfully imported ${importedTotal} invoices. Skipped ${skippedTotal} duplicates.`;
+                };
+
+                await toast.promise(uploadBatches(), {
+                    loading: `Importing ${invoicesToImport.length} invoices in batches...`,
+                    success: (msg: string) => {
+                        setMigratedPage(1);
                         fetchMigratedInvoices();
-                        return res.data.message || `Successfully imported invoices!`;
+                        return msg;
                     },
                     error: 'Failed to import invoices.'
                 });
@@ -374,6 +480,10 @@ const Invoices = () => {
     };
 
     const handleClearMigrated = async () => {
+        if (user?.role !== 'admin') {
+            toast.error('Only Admins can clear migrated invoices');
+            return;
+        }
         if (!window.confirm("Are you sure you want to delete all migrated invoices? This action cannot be undone.")) {
             return;
         }
@@ -384,6 +494,46 @@ const Invoices = () => {
             fetchMigratedInvoices();
         } catch (err) {
             toast.error("Failed to clear migrated invoices.");
+        }
+    };
+
+    const handleExportMigrated = async (format: 'xlsx' | 'csv') => {
+        try {
+            toast.loading(`Preparing export data...`, { id: 'export-toast' });
+            // Fetch all migrated invoices
+            const res = await api.get('/invoices/migrated', { params: { limit: 100000, search: migratedSearch || undefined } });
+            const allInvoices = res.data.data;
+
+            if (!allInvoices || allInvoices.length === 0) {
+                toast.error('No migrated invoices to export.', { id: 'export-toast' });
+                return;
+            }
+
+            // Map data to columns matching the spreadsheet
+            const exportData = allInvoices.map((inv: any) => ({
+                'Invoice#': inv.invoiceNumber,
+                'Date': inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+                'Customer': inv.contactName,
+                'Reference': inv.reference || '',
+                'Amount (AUD)': inv.totalAmount,
+                'Status': inv.lineItems?.[0]?.description || 'Imported Invoice',
+                'Due Date': inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+            }));
+
+            // Create worksheet
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Migrated Invoices');
+
+            if (format === 'xlsx') {
+                XLSX.writeFile(workbook, `migrated_invoices_${Date.now()}.xlsx`);
+            } else {
+                XLSX.writeFile(workbook, `migrated_invoices_${Date.now()}.csv`, { bookType: 'csv' });
+            }
+
+            toast.success(`Exported ${allInvoices.length} invoices successfully!`, { id: 'export-toast' });
+        } catch (err: any) {
+            toast.error(`Export failed: ${err.message || err}`, { id: 'export-toast' });
         }
     };
 
@@ -405,6 +555,9 @@ const Invoices = () => {
             setLoading(true);
             const params: any = { page: currentPage, limit: itemsPerPage };
             if (filterStatus) params.paymentStatus = filterStatus;
+            if (activeTab === 'pending') {
+                params.isApproved = 'false';
+            }
             
             const res = await api.get('/invoices', { params });
             setInvoices(res.data.data);
@@ -417,7 +570,15 @@ const Invoices = () => {
         }
     };
 
-    useEffect(() => { fetchInvoices(); }, [currentPage, filterStatus]);
+    useEffect(() => {
+        if (activeTab !== 'migrated') {
+            fetchInvoices();
+        }
+    }, [currentPage, filterStatus, activeTab]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab]);
 
     // ── Client-side filtering ──
     const filteredInvoices = useMemo(() => {
@@ -454,7 +615,6 @@ const Invoices = () => {
     const hasDateFilter = Boolean(filterDateFrom || filterDateTo);
     const activeFilterCount = [filterStatus, filterCustomer, filterOrderId, hasDateFilter ? 'date' : ''].filter(Boolean).length;
     const hasActiveFilters = activeFilterCount > 0;
-    const showRowActions = !hasActiveFilters;
 
     const clearFilters = () => {
         setFilterStatus('');
@@ -474,13 +634,37 @@ const Invoices = () => {
         }
 
         const today = new Date();
-        const from = new Date(today);
-        if (preset === '7d') from.setDate(today.getDate() - 6);
-        if (preset === '15d') from.setDate(today.getDate() - 14);
-        if (preset === '1m') from.setMonth(today.getMonth() - 1);
+        today.setHours(0, 0, 0, 0);
 
-        setFilterDateFrom(toDateInputValue(from));
-        setFilterDateTo(toDateInputValue(today));
+        if (preset === 'today') {
+            setFilterDateFrom(toDateInputValue(today));
+            setFilterDateTo(toDateInputValue(today));
+        } else if (preset === 'yesterday') {
+            const y = new Date(today);
+            y.setDate(y.getDate() - 1);
+            setFilterDateFrom(toDateInputValue(y));
+            setFilterDateTo(toDateInputValue(y));
+        } else if (preset === 'tomorrow') {
+            const t = new Date(today);
+            t.setDate(t.getDate() + 1);
+            setFilterDateFrom(toDateInputValue(t));
+            setFilterDateTo(toDateInputValue(t));
+        } else if (preset === 'last7') {
+            const w = new Date(today);
+            w.setDate(w.getDate() - 6);
+            setFilterDateFrom(toDateInputValue(w));
+            setFilterDateTo(toDateInputValue(today));
+        } else if (preset === 'last15') {
+            const w = new Date(today);
+            w.setDate(w.getDate() - 14);
+            setFilterDateFrom(toDateInputValue(w));
+            setFilterDateTo(toDateInputValue(today));
+        } else if (preset === 'last30') {
+            const m = new Date(today);
+            m.setDate(m.getDate() - 29);
+            setFilterDateFrom(toDateInputValue(m));
+            setFilterDateTo(toDateInputValue(today));
+        }
     };
 
     const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
@@ -513,7 +697,6 @@ const Invoices = () => {
             // Separate items into sections (same as A4)
             const allItems = items || [];
             const services = allItems.filter((item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-            const manualItems = allItems.filter((item: any) => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
             const refundedItems = allItems.filter((item: any) => item.isRefunded);
             
             return `
@@ -567,24 +750,7 @@ const Invoices = () => {
                             `;
                         }).join('')}
                     ` : ''}
-                    
-                    ${manualItems.length > 0 ? `
-                        <div class="section-header">ITEMS - NOT BILLED</div>
-                        ${manualItems.map((item: any) => {
-                            const qty = item.shippedQuantity ?? item.quantity;
-                            const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
-                            return `
-                                <div class="item-row">
-                                    <div>${item.itemName || item.serviceName}</div>
-                                    <div class="row small">
-                                        <span>${qty}${hasDiff ? ` (ordered: ${item.quantity})` : ''} × <span class="strike">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</span></span>
-                                        <span>Not Billed</span>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                        <div class="info center">Tracked for damage reference only</div>
-                    ` : ''}
+
                     
                     ${refundedItems.length > 0 ? `
                         <div class="section-header">REFUNDED ITEMS</div>
@@ -641,7 +807,6 @@ const Invoices = () => {
         // Separate items into sections (SAME AS MODAL)
         const allItems = items || [];
         const services = allItems.filter((item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-        const manualItems = allItems.filter((item: any) => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
         const refundedItems = allItems.filter((item: any) => item.isRefunded);
         
         const deliveryDate = order.deliveryDate;
@@ -846,30 +1011,7 @@ const Invoices = () => {
                                 `;
                             }).join('')}
                         ` : ''}
-                        
-                        ${manualItems.length > 0 ? `
-                            <tr style="${styles.sectionHeader}">
-                                <td colspan="5">📦 Items - Tracking Only (Not Billed)</td>
-                            </tr>
-                            ${manualItems.map((item: any, idx: number) => {
-                                const qty = item.shippedQuantity ?? item.quantity;
-                                const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
-                                return `
-                                    <tr>
-                                        <td style="${styles.td}">${idx === 0 ? formattedDate : '—'}</td>
-                                        <td style="${styles.td}">${item.itemName || item.serviceName}</td>
-                                        <td style="${styles.tdCenter}">${qty}${hasDiff ? ` <span style="font-size: 8px; color: #64748b;">(ord: ${item.quantity})</span>` : ''}</td>
-                                        <td style="${styles.tdStrike}">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</td>
-                                        <td style="${styles.tdNotBilled}">Not Billed</td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                            <tr style="${styles.infoRow}">
-                                <td colspan="5" style="${styles.infoText}">
-                                    ℹ️ These items are tracked for damage reference only and NOT included in billing
-                                </td>
-                            </tr>
-                        ` : ''}
+
                         
                         ${refundedItems.length > 0 ? `
                             <tr style="${styles.sectionHeader}">
@@ -1050,31 +1192,7 @@ const Invoices = () => {
                     `;
                 }).join('')}
             ` : '';
-            const manualRows = manualItems.length > 0 ? `
-                <tr class="section-row"><td colspan="5">Items - Tracking Only (Not Billed)</td></tr>
-                ${manualItems.map((item: any, idx: number) => {
-                    const qty = item.shippedQuantity ?? item.quantity;
-                    const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
-                    return `
-                        <tr>
-                            <td>${idx === 0 && services.length === 0 ? deliveryDate : '-'}</td>
-                            <td>
-                                <strong>${escapeHtml(item.itemName || item.serviceName || 'Item')}</strong>
-                                <div class="muted">${escapeHtml(invoiceLabel)}${order.orderId ? ` | ${escapeHtml(order.orderId)}` : ''}</div>
-                            </td>
-                            <td class="center">
-                                ${qty}
-                                ${hasDiff ? `<div style="font-size: 8px; color: #64748b;">(ord: ${item.quantity})</div>` : ''}
-                            </td>
-                            <td class="right strike">${formatMoney(item.pricePerUnit)}</td>
-                            <td class="right muted-strong">Not Billed</td>
-                        </tr>
-                    `;
-                }).join('')}
-                <tr class="info-row">
-                    <td colspan="5">These items are tracked for damage reference only and NOT included in billing</td>
-                </tr>
-            ` : '';
+            const manualRows = '';
             const refundedRows = refundedItems.length > 0 ? `
                 <tr class="section-row"><td colspan="5">Refunded Items</td></tr>
                 ${refundedItems.map((item: any, idx: number) => `
@@ -1747,12 +1865,22 @@ const Invoices = () => {
                 <button
                     onClick={() => setSearchParams({})}
                     className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-                        activeTab !== 'migrated'
+                        activeTab !== 'migrated' && activeTab !== 'pending'
                             ? 'border-cyan-500 text-cyan-600'
                             : 'border-transparent text-slate-400 hover:text-slate-700'
                     }`}
                 >
                     Standard Invoices
+                </button>
+                <button
+                    onClick={() => setSearchParams({ tab: 'pending' })}
+                    className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                        activeTab === 'pending'
+                            ? 'border-cyan-500 text-cyan-600'
+                            : 'border-transparent text-slate-400 hover:text-slate-700'
+                    }`}
+                >
+                    Pending Approval
                 </button>
                 <button
                     onClick={() => setSearchParams({ tab: 'migrated' })}
@@ -1814,9 +1942,12 @@ const Invoices = () => {
                                             className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer"
                                         >
                                             <option value="">Custom dates</option>
-                                            <option value="7d">Last 1 week</option>
-                                            <option value="15d">Last 15 days</option>
-                                            <option value="1m">Last 1 month</option>
+                                            <option value="today">Today</option>
+                                            <option value="yesterday">Yesterday</option>
+                                            <option value="tomorrow">Tomorrow</option>
+                                            <option value="last7">Last 7 days</option>
+                                            <option value="last15">Last 15 days</option>
+                                            <option value="last30">Last 1 month</option>
                                         </select>
                                         <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
                                     </div>
@@ -1923,15 +2054,42 @@ const Invoices = () => {
                         </div>
                     )}
 
-                    {/* ── TABLE CARD ── */}
-                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    {/* ── Quick date chips ── */}
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                        {(['today', 'yesterday', 'tomorrow', 'last7', 'last15', 'last30'] as DatePreset[]).map((preset) => {
+                            const labels: Record<string, string> = { 
+                                today: 'Today', 
+                                yesterday: 'Yesterday', 
+                                tomorrow: 'Tomorrow', 
+                                last7: 'Last 7 Days',
+                                last15: 'Last 15 Days',
+                                last30: 'Last 30 Days'
+                            };
+                            const active = filterDatePreset === preset;
+                            return (
+                                <button
+                                    key={preset}
+                                    onClick={() => applyDatePreset(preset)}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${active
+                                        ? 'bg-cyan-500 text-white border-cyan-500 shadow-md shadow-cyan-200'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-cyan-400 hover:text-cyan-600'
+                                        }`}
+                                >
+                                    {labels[preset!]}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* ── INVOICES GRID ── */}
+                    <div>
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-24 gap-4">
+                            <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
                                 <div className="w-10 h-10 border-[3px] border-cyan-500 border-t-transparent rounded-full animate-spin" />
                                 <p className="text-sm text-slate-400">Loading invoices…</p>
                             </div>
                         ) : filteredInvoices.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+                            <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-sm">
                                 <HiOutlineDocumentText className="w-12 h-12 opacity-30" />
                                 <p className="text-sm font-medium">No invoices match your filters</p>
                                 <button onClick={clearFilters} className="text-xs text-cyan-500 hover:text-cyan-700 font-medium underline underline-offset-2">
@@ -1939,120 +2097,143 @@ const Invoices = () => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-100">
-                                            <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Invoice</th>
-                                            <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Order</th>
-                                            <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
-                                            <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
-                                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Paid</th>
-                                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-550 uppercase tracking-wider">Due</th>
-                                            <th className="px-5 py-3.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                            {showRowActions && (
-                                                <th className="px-5 py-3.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
-                                            )}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {filteredInvoices.map((inv) => (
-                                            <tr key={inv._id} className="hover:bg-slate-50/80 transition-colors group">
-                                                <td className="px-5 py-4">
-                                                    <span className="font-semibold text-cyan-600 group-hover:text-cyan-700 transition-colors">
-                                                        {inv.invoiceId}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                                                    {inv.order?.orderId || '—'}
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <div className="font-medium text-slate-800">{inv.customer?.name || '—'}</div>
-                                                    {(inv.customer?.phone || inv.customer?.customerId) && (
-                                                        <div className="text-xs text-slate-400 mt-0.5">
+                            <>
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                    {filteredInvoices.map((inv) => (
+                                        <div key={inv._id} className="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all duration-205 flex flex-col md:flex-row gap-5 relative overflow-hidden text-left">
+                                            {/* Left Column: ID, Order ID, Date, Customer */}
+                                            <div className="flex-1 space-y-3 flex flex-col justify-between">
+                                                <div>
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Invoice ID</span>
+                                                            <div className="text-base font-bold text-cyan-600 cursor-pointer hover:text-cyan-800 transition-colors" onClick={() => viewInvoiceDetail(inv._id)}>
+                                                                {inv.invoiceId}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Order ID</span>
+                                                            <div className="text-xs font-mono font-bold text-slate-600 mt-0.5">
+                                                                {inv.order?.orderId || '—'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="border-t border-slate-100 pt-2.5 mt-2.5">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Customer</span>
+                                                        <div className="font-bold text-slate-800 text-sm mt-0.5">{inv.customer?.name || '—'}</div>
+                                                        <div className="text-xs text-slate-400 font-medium">
                                                             {[inv.customer?.phone, inv.customer?.customerId].filter(Boolean).join(' • ')}
                                                         </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-5 py-4 text-slate-500 text-xs whitespace-nowrap">
-                                                    {inv.createdAt
-                                                        ? new Date(inv.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                                        : '—'}
-                                                </td>
-                                                <td className="px-5 py-4 text-right font-semibold text-slate-850">
-                                                    {currency}{inv.totalAmount?.toLocaleString()}
-                                                </td>
-                                                <td className="px-5 py-4 text-right font-medium text-emerald-600">
-                                                    {currency}{inv.paidAmount?.toLocaleString()}
-                                                </td>
-                                                <td className="px-5 py-4 text-right">
-                                                    {inv.balanceDue < 0 ? (
-                                                        <span className="font-semibold text-emerald-600">
-                                                            Refund {currency}{Math.abs(inv.balanceDue)?.toLocaleString()}
-                                                        </span>
-                                                    ) : (
-                                                        <span className={`font-semibold ${inv.balanceDue > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                            {currency}{inv.balanceDue?.toLocaleString()}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-5 py-4 text-center">
-                                                    <StatusBadge status={inv.paymentStatus} />
-                                                </td>
-                                                {showRowActions && (
-                                                    <td className="px-5 py-4">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <button
-                                                                onClick={() => viewInvoiceDetail(inv._id)}
-                                                                title="View Invoice"
-                                                                className="p-2 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition-all"
-                                                            >
-                                                                <HiOutlineEye className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                title="Download PDF"
-                                                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                                                                onClick={async () => {
-                                                                    try {
-                                                                        const res = await api.get(`/invoices/${inv._id}`);
-                                                                        downloadPDF(res.data.data);
-                                                                    } catch { toast.error('Failed to download'); }
-                                                                }}
-                                                            >
-                                                                <HiOutlineDownload className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                title="Print Thermal Receipt"
-                                                                className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
-                                                                onClick={async () => {
-                                                                    try {
-                                                                        const res = await api.get(`/invoices/${inv._id}`);
-                                                                        printInvoice(res.data.data, 'thermal');
-                                                                    } catch { toast.error('Failed to print'); }
-                                                                }}
-                                                            >
-                                                                <HiOutlinePrinter className="w-4 h-4" />
-                                                            </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="border-t border-slate-100 pt-2.5 mt-auto flex justify-between items-center">
+                                                    <div>
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date</span>
+                                                        <div className="text-xs font-semibold text-slate-600 mt-0.5">
+                                                            {inv.createdAt
+                                                                ? new Date(inv.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                                                : '—'}
                                                         </div>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                        
-                        {/* Pagination */}
-                        {!loading && filteredInvoices.length > 0 && (
-                            <Pagination
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                totalItems={totalItems}
-                                itemsPerPage={itemsPerPage}
-                                onPageChange={setCurrentPage}
-                            />
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status</span>
+                                                        <div className="mt-1">
+                                                            <StatusBadge status={inv.paymentStatus} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Vertical divider on medium screens */}
+                                            <div className="hidden md:block w-px bg-slate-100 shrink-0" />
+
+                                            {/* Right Column: Pricing & Actions */}
+                                            <div className="flex-1 flex flex-col justify-between gap-4">
+                                                <div className="space-y-2.5 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                    <div className="flex justify-between text-xs text-slate-600">
+                                                        <span>Total Amount:</span>
+                                                        <span className="font-bold text-slate-900">{currency}{inv.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-xs text-slate-600">
+                                                        <span>Paid Amount:</span>
+                                                        <span className="font-semibold text-emerald-600">{currency}{inv.paidAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-xs text-slate-655 border-t border-dashed border-slate-200 pt-2">
+                                                        <span className="font-semibold">Balance Due:</span>
+                                                        {inv.balanceDue < 0 ? (
+                                                            <span className="font-bold text-emerald-600">
+                                                                Refund {currency}{Math.abs(inv.balanceDue)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`font-bold ${inv.balanceDue > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                                {currency}{inv.balanceDue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 border-t border-slate-100 pt-3">
+                                                        {!inv.isApproved && (
+                                                            <button
+                                                                onClick={() => handleApproveInvoice(inv._id)}
+                                                                title="Approve Invoice"
+                                                                className="flex-1 flex items-center justify-center gap-1 px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                                            >
+                                                                <HiCheck className="w-4 h-4" /> Approve
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => viewInvoiceDetail(inv._id)}
+                                                            title="View Invoice"
+                                                            className="flex-1 flex items-center justify-center gap-1 px-2.5 py-2 bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 text-slate-500 rounded-xl text-xs font-semibold border border-slate-105 transition-all cursor-pointer"
+                                                        >
+                                                            <HiOutlineEye className="w-4 h-4" /> View
+                                                        </button>
+                                                        <button
+                                                            title="Download PDF"
+                                                            className="p-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-xl border border-slate-105 text-slate-400 transition-all cursor-pointer"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await api.get(`/invoices/${inv._id}`);
+                                                                    downloadPDF(res.data.data);
+                                                                } catch { toast.error('Failed to download'); }
+                                                            }}
+                                                        >
+                                                            <HiOutlineDownload className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            title="Print Thermal Receipt"
+                                                            className="p-2 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 rounded-xl border border-slate-105 text-slate-400 transition-all cursor-pointer"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await api.get(`/invoices/${inv._id}`);
+                                                                    printInvoice(res.data.data, 'thermal');
+                                                                } catch { toast.error('Failed to print'); }
+                                                            }}
+                                                        >
+                                                            <HiOutlinePrinter className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {!loading && filteredInvoices.length > 0 && (
+                                    <div className="mt-6">
+                                        <Pagination
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            totalItems={totalItems}
+                                            itemsPerPage={itemsPerPage}
+                                            onPageChange={setCurrentPage}
+                                        />
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </>
@@ -2117,6 +2298,32 @@ const Invoices = () => {
                         </div>
                     </div>
 
+                    {/* ── MIGRATED INVOICES KPI CARDS ── */}
+                    {migratedTotalItems > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex items-center justify-between">
+                                <div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Migrated Invoices</span>
+                                    <span className="text-2xl font-bold text-slate-800">{migratedTotalItems.toLocaleString()}</span>
+                                </div>
+                                <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600">
+                                    <HiOutlineDocumentText className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex items-center justify-between">
+                                <div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Net Amount</span>
+                                    <span className={`text-2xl font-bold ${migratedTotalAmount < 0 ? 'text-red-500' : 'text-slate-850'}`}>
+                                        AUD ${migratedTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                    <HiOutlineCash className="w-5 h-5" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── SEARCH & CLEAR BAR ── */}
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
                         <div className="relative w-full sm:max-w-xs">
@@ -2134,16 +2341,31 @@ const Invoices = () => {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <span className="text-xs font-medium text-slate-400">
-                                Total Migrated: <span className="font-semibold text-slate-700">{migratedTotalItems}</span>
-                            </span>
                             {migratedTotalItems > 0 && (
-                                <button
-                                    onClick={handleClearMigrated}
-                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-red-50 hover:bg-red-105 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                                >
-                                    <HiOutlineTrash className="w-3.5 h-3.5" /> Clear All History
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => handleExportMigrated('xlsx')}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                        title="Export all migrated invoices to Excel"
+                                    >
+                                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export Excel
+                                    </button>
+                                    <button
+                                        onClick={() => handleExportMigrated('csv')}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-600 hover:text-cyan-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                        title="Export all migrated invoices to CSV"
+                                    >
+                                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export CSV
+                                    </button>
+                                    <button
+                                        onClick={handleClearMigrated}
+                                        disabled={user?.role !== 'admin'}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-50 disabled:hover:text-red-600"
+                                        title={user?.role !== 'admin' ? "Only Admin can clear migrated history" : "Clear All History"}
+                                    >
+                                        <HiOutlineTrash className="w-3.5 h-3.5" /> Clear All History
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -2274,6 +2496,14 @@ const Invoices = () => {
                                     </>
                                 ) : (
                                     <>
+                                        {!viewInvoice.isApproved && (
+                                            <button
+                                                onClick={() => handleApproveInvoice(viewInvoice._id)}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-lg transition-all font-bold shadow"
+                                            >
+                                                <HiCheck className="w-3.5 h-3.5" /> Approve
+                                            </button>
+                                        )}
                                         <button
                                             onClick={enterEditMode}
                                             disabled={viewInvoice.isFinalized && user?.role !== 'admin'}
@@ -2422,7 +2652,6 @@ const Invoices = () => {
                                                 <tr className="bg-[#1c2a5e] text-white">
                                                     <th className="text-left py-2 px-3 font-semibold w-8">#</th>
                                                     <th className="text-left py-2 px-3 font-semibold">Item Name</th>
-                                                    <th className="text-left py-2 px-3 font-semibold w-24">Type</th>
                                                     <th className="text-center py-2 px-3 font-semibold w-20">Qty</th>
                                                     <th className="text-right py-2 px-3 font-semibold w-32">Rate</th>
                                                     <th className="text-right py-2 px-3 font-semibold w-28">Total</th>
@@ -2430,77 +2659,67 @@ const Invoices = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {editItems.map((item, index) => {
-                                                    const isManual = item.serviceType === 'manual';
-                                                    const rowSubtotal = (Number(item.quantity) || 0) * (Number(item.pricePerUnit) || 0);
-                                                    return (
-                                                        <tr key={index} className={`border-b border-slate-200 ${item.isRefunded ? 'bg-red-50/50' : 'hover:bg-amber-50/30'} transition-colors`}>
-                                                            <td className="py-2 px-3 text-slate-400 font-mono text-center">{index + 1}</td>
-                                                            <td className="py-1.5 px-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={item.itemName || item.serviceName || ''}
-                                                                    onChange={(e) => {
-                                                                        handleEditItemChange(index, 'itemName', e.target.value);
-                                                                        handleEditItemChange(index, 'serviceName', e.target.value);
-                                                                    }}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
-                                                                    placeholder="Item name…"
-                                                                />
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <select
-                                                                    value={item.serviceType || 'service'}
-                                                                    onChange={(e) => handleEditItemChange(index, 'serviceType', e.target.value)}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
-                                                                >
-                                                                    <option value="service">Billable</option>
-                                                                    <option value="manual">Tracking Only</option>
-                                                                </select>
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <input
-                                                                    type="number"
-                                                                    min="1"
-                                                                    value={item.quantity}
-                                                                    onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-center font-semibold text-slate-800"
-                                                                />
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-400 focus-within:border-transparent transition-all">
-                                                                    <span className="bg-slate-50 border-r border-slate-200 px-2 py-1.5 text-[10px] font-bold text-slate-400 select-none">
-                                                                        {currency}
-                                                                    </span>
+                                                {(() => {
+                                                    let visibleIndex = 0;
+                                                    return editItems.map((item, index) => {
+                                                        if (item.serviceType === 'manual') return null;
+                                                        visibleIndex++;
+                                                        const rowSubtotal = (Number(item.quantity) || 0) * (Number(item.pricePerUnit) || 0);
+                                                        return (
+                                                            <tr key={index} className={`border-b border-slate-200 ${item.isRefunded ? 'bg-red-50/50' : 'hover:bg-amber-50/30'} transition-colors`}>
+                                                                <td className="py-2 px-3 text-slate-400 font-mono text-center">{visibleIndex}</td>
+                                                                <td className="py-1.5 px-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={item.itemName || item.serviceName || ''}
+                                                                        onChange={(e) => {
+                                                                            handleEditItemChange(index, 'itemName', e.target.value);
+                                                                            handleEditItemChange(index, 'serviceName', e.target.value);
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
+                                                                        placeholder="Item name…"
+                                                                    />
+                                                                </td>
+                                                                <td className="py-1.5 px-2">
                                                                     <input
                                                                         type="number"
-                                                                        min="0"
-                                                                        step="0.01"
-                                                                        value={item.pricePerUnit}
-                                                                        onChange={(e) => handleEditItemChange(index, 'pricePerUnit', e.target.value)}
-                                                                        className="w-full px-2 py-1.5 outline-none text-right font-semibold text-slate-800 text-xs border-none"
+                                                                        min="1"
+                                                                        value={item.quantity}
+                                                                        onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
+                                                                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-center font-semibold text-slate-800"
                                                                     />
-                                                                </div>
-                                                            </td>
-                                                            <td className="text-right py-2 px-3 font-bold text-slate-800">
-                                                                {isManual ? (
-                                                                    <span className="text-slate-400 text-[10px]">Not Billed</span>
-                                                                ) : (
-                                                                    <>{currency}{rowSubtotal.toFixed(2)}</>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-2 px-2 text-center">
-                                                                <button
-                                                                    onClick={() => handleRemoveEditItem(index)}
-                                                                    className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                                                                    title="Remove item"
-                                                                >
-                                                                    <HiOutlineTrash className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                                                </td>
+                                                                <td className="py-1.5 px-2">
+                                                                    <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-400 focus-within:border-transparent transition-all">
+                                                                        <span className="bg-slate-50 border-r border-slate-200 px-2 py-1.5 text-[10px] font-bold text-slate-400 select-none">
+                                                                            {currency}
+                                                                        </span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step="0.01"
+                                                                            value={item.pricePerUnit}
+                                                                            onChange={(e) => handleEditItemChange(index, 'pricePerUnit', e.target.value)}
+                                                                            className="w-full px-2 py-1.5 outline-none text-right font-semibold text-slate-800 text-xs border-none"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="text-right py-2 px-3 font-bold text-slate-800">
+                                                                    {currency}{rowSubtotal.toFixed(2)}
+                                                                </td>
+                                                                <td className="py-2 px-2 text-center">
+                                                                    <button
+                                                                        onClick={() => handleRemoveEditItem(index)}
+                                                                        className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                                        title="Remove item"
+                                                                    >
+                                                                        <HiOutlineTrash className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
                                             </tbody>
                                         </table>
                                         {/* Add Item Button */}
@@ -2518,7 +2737,6 @@ const Invoices = () => {
                                     (() => {
                                         const allItems = [...(viewInvoice.order?.items || [])];
                                         const services = allItems.filter(item => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-                                        const manualItems = allItems.filter(item => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
                                         const refundedItems = allItems.filter(item => item.isRefunded);
                                         
                                         const formatDate = (dateStr: string) => {
@@ -2557,13 +2775,17 @@ const Invoices = () => {
                                                                         {i === 0 ? formattedDate : '—'}
                                                                     </td>
                                                                     <td className="py-2 px-3 text-slate-900 font-medium">{item.serviceName || item.itemName}</td>
-                                                                    <td className="text-center py-2 px-3 text-slate-900">
-                                                                        <span>{item.shippedQuantity ?? item.quantity}</span>
-                                                                        {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                                            <span className="text-[10px] text-slate-400 block font-normal">
-                                                                                (ord: {item.quantity})
+                                                                    <td className="text-center py-2 px-3">
+                                                                        <div className="flex flex-col items-center gap-1">
+                                                                            <span className="text-[12px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                                                                {item.shippedQuantity ?? item.quantity} {item.unit}
                                                                             </span>
-                                                                        )}
+                                                                            {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
+                                                                                <span className="text-[10px] text-slate-500 font-medium bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                                    Ordered: {item.quantity}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                     <td className="text-right py-2 px-3 text-slate-900">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
                                                                     <td className="text-right py-2 px-3 text-slate-900 font-semibold">{currency}{Number(item.subtotal || 0).toFixed(2)}</td>
@@ -2571,40 +2793,7 @@ const Invoices = () => {
                                                             ))}
                                                         </>
                                                     )}
-                                                    
-                                                    {/* SECTION 2: ITEMS - TRACKING ONLY (NOT BILLED) */}
-                                                    {manualItems.length > 0 && (
-                                                        <>
-                                                            <tr className="bg-slate-100">
-                                                                <td colSpan={5} className="py-2 px-3 font-bold text-xs uppercase tracking-wide text-slate-700">
-                                                                    📦 Items - Tracking Only (Not Billed)
-                                                                </td>
-                                                            </tr>
-                                                            {manualItems.map((item, i) => (
-                                                                <tr key={`manual-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
-                                                                    <td className="py-2 px-3 text-slate-700">
-                                                                        {i === 0 ? formattedDate : '—'}
-                                                                    </td>
-                                                                    <td className="py-2 px-3 text-slate-900 font-medium">{item.itemName || item.serviceName}</td>
-                                                                    <td className="text-center py-2 px-3 text-slate-900">
-                                                                        <span>{item.shippedQuantity ?? item.quantity}</span>
-                                                                        {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                                            <span className="text-[10px] text-slate-400 block font-normal">
-                                                                                (ord: {item.quantity})
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="text-right py-2 px-3 text-slate-500 line-through">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
-                                                                    <td className="text-right py-2 px-3 text-slate-500 font-semibold">Not Billed</td>
-                                                                </tr>
-                                                            ))}
-                                                            <tr className="bg-slate-50 border-b border-slate-200">
-                                                                <td colSpan={5} className="py-2 px-3 text-center text-xs text-slate-600">
-                                                                    ℹ️ These items are tracked for damage reference only and NOT included in billing
-                                                                </td>
-                                                            </tr>
-                                                        </>
-                                                    )}
+
                                                     
                                                     {/* SECTION 3: REFUNDED ITEMS */}
                                                     {refundedItems.length > 0 && (

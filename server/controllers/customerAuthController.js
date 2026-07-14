@@ -15,10 +15,10 @@ exports.register = async (req, res, next) => {
     try {
         const { name, phone, email, address, password } = req.body;
 
-        if (!name || !phone || !password) {
+        if (!name || !phone || !email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, phone, and password are required',
+                message: 'Name, phone, email, and password are required',
             });
         }
 

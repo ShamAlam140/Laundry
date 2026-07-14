@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import type { IOrder, OrderStatus } from '../types';
 import Pagination from '../components/Pagination';
+import * as XLSX from 'xlsx';
 import {
     HiOutlineSearch,
     HiOutlinePlusCircle,
@@ -17,8 +19,10 @@ import {
     HiOutlineCurrencyDollar,
     HiOutlinePencil,
     HiOutlineTrash,
+    HiOutlineCheck,
+    HiOutlineDownload,
 } from 'react-icons/hi';
-import { HiMinus, HiPlus } from 'react-icons/hi2';
+import { HiMinus, HiPlus, HiOutlineTruck } from 'react-icons/hi2';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +75,7 @@ const Orders = () => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const { currency, settings } = useSettings();
+    const { user } = useAuth();
 
     // Edit Order Modal States
     const [showEditModal, setShowEditModal] = useState(false);
@@ -253,6 +258,10 @@ const Orders = () => {
     };
 
     const cancelOrder = async (orderId: string) => {
+        if (user?.role !== 'admin') {
+            toast.error('Only Admins can cancel/delete orders');
+            return;
+        }
         if (!confirm('Are you sure you want to cancel/delete this order?')) return;
         try {
             await api.delete(`/orders/${orderId}`);
@@ -260,6 +269,111 @@ const Orders = () => {
             fetchOrders();
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to cancel/delete order');
+        }
+     };
+
+    const handleExportOrders = async (format: 'xlsx' | 'csv') => {
+        try {
+            toast.loading(`Preparing order export...`, { id: 'order-export-toast' });
+            
+            const params: Record<string, any> = { limit: 100000 };
+            if (search) params.search = search;
+            if (statusFilter) params.status = statusFilter;
+            
+            const res = await api.get('/orders', { params });
+            let result = [...res.data.data];
+
+            let resolvedFrom = dateFrom;
+            let resolvedTo = dateTo;
+            if (datePreset) {
+                const range = getPresetRange(datePreset);
+                resolvedFrom = range.from;
+                resolvedTo = range.to;
+            }
+
+            if (resolvedFrom) {
+                const from = new Date(resolvedFrom);
+                from.setHours(0, 0, 0, 0);
+                result = result.filter((o) => new Date(o.createdAt) >= from);
+            }
+            if (resolvedTo) {
+                const to = new Date(resolvedTo);
+                to.setHours(23, 59, 59, 999);
+                result = result.filter((o) => new Date(o.createdAt) <= to);
+            }
+            if (amountMin !== '') {
+                result = result.filter((o) => o.totalAmount >= Number(amountMin));
+            }
+            if (amountMax !== '') {
+                result = result.filter((o) => o.totalAmount <= Number(amountMax));
+            }
+
+            if (result.length === 0) {
+                toast.error('No orders to export.', { id: 'order-export-toast' });
+                return;
+            }
+
+            const exportData: any[] = [];
+            
+            result.forEach((o: any) => {
+                const baseInfo = {
+                    'Order ID': o.orderId,
+                    'Customer Name': o.customer?.name || '—',
+                    'Customer Phone': o.customer?.phone || '—',
+                    'Order Status': o.status || 'received',
+                    'Payment Status': o.paymentStatus || 'unpaid',
+                    'Date Created': o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+                    'Created By': o.createdBy?.name || '—',
+                    'Assigned Staff': o.assignedStaff?.name || '—',
+                    'Special Instructions': o.specialInstructions || '',
+                    'Delivery Date': o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+                    'Order Subtotal': o.subtotal || 0,
+                    'Order Tax (%)': o.taxPercent || 0,
+                    'Order Discount (%)': o.discountPercent || 0,
+                    'Order Service Charge': o.serviceCharge || 0,
+                    'Order Total Amount': o.totalAmount || 0,
+                    'Order Paid Amount': o.paidAmount || 0,
+                    'Order Balance Due': o.balanceDue || 0,
+                };
+
+                if (o.items && o.items.length > 0) {
+                    o.items.forEach((item: any) => {
+                        exportData.push({
+                            ...baseInfo,
+                            'Item Service Name': item.serviceName || '—',
+                            'Item Detail / Name': item.itemName || '—',
+                            'Item Service Type': item.serviceType || '—',
+                            'Item Quantity': Number(item.quantity) || 0,
+                            'Item Price Per Unit': item.pricePerUnit || 0,
+                            'Item Subtotal': item.subtotal || 0,
+                        });
+                    });
+                } else {
+                    exportData.push({
+                        ...baseInfo,
+                        'Item Service Name': '—',
+                        'Item Detail / Name': '—',
+                        'Item Service Type': '—',
+                        'Item Quantity': 0,
+                        'Item Price Per Unit': 0,
+                        'Item Subtotal': 0,
+                    });
+                }
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
+
+            if (format === 'xlsx') {
+                XLSX.writeFile(workbook, `orders_detailed_${Date.now()}.xlsx`);
+            } else {
+                XLSX.writeFile(workbook, `orders_detailed_${Date.now()}.csv`, { bookType: 'csv' });
+            }
+
+            toast.success(`Exported ${result.length} orders successfully!`, { id: 'order-export-toast' });
+        } catch (err: any) {
+            toast.error(`Export failed: ${err.message || err}`, { id: 'order-export-toast' });
         }
     };
 
@@ -438,12 +552,28 @@ const Orders = () => {
                     <h1 className="text-2xl font-bold text-slate-900">Orders</h1>
                     <p className="text-sm text-slate-500 mt-1">{orders.length} orders found</p>
                 </div>
-                <button
-                    onClick={() => navigate('/orders/new')}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/30"
-                >
-                    <HiOutlinePlusCircle className="w-5 h-5" /> New Order
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => handleExportOrders('xlsx')}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-indigo-200"
+                        title="Export filtered orders to Excel"
+                    >
+                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export Excel
+                    </button>
+                    <button
+                        onClick={() => handleExportOrders('csv')}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-600 hover:text-cyan-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-cyan-200"
+                        title="Export filtered orders to CSV"
+                    >
+                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export CSV
+                    </button>
+                    <button
+                        onClick={() => navigate('/orders/new')}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/30"
+                    >
+                        <HiOutlinePlusCircle className="w-5 h-5" /> New Order
+                    </button>
+                </div>
             </div>
 
             {/* ── Search + Status + Advanced toggle ── */}
@@ -618,65 +748,49 @@ const Orders = () => {
                 </div>
             )}
 
-            {/* ── Table ── */}
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            {/* ── Grid of Cards ── */}
+            <div>
                 {loading ? (
-                    <div className="flex items-center justify-center py-20">
+                    <div className="flex items-center justify-center py-20 bg-white border border-slate-200 rounded-2xl">
                         <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                 ) : orders.length === 0 ? (
-                    <div className="text-center py-20 text-slate-500 text-sm">No orders found</div>
+                    <div className="text-center py-20 text-slate-500 text-sm bg-white border border-slate-200 rounded-2xl animate-fadeIn">
+                        No orders found
+                    </div>
                 ) : (
                     <>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
-                                        <th className="px-5 py-3 text-left">Order ID</th>
-                                        <th className="px-5 py-3 text-left">Customer</th>
-                                        <th className="px-5 py-3 text-left">Items</th>
-                                        <th className="px-5 py-3 text-right">Amount</th>
-                                        <th className="px-5 py-3 text-center">Status</th>
-                                        <th className="px-5 py-3 text-left">Date</th>
-                                        <th className="px-5 py-3 text-center">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {orders.map((o) => (
-                                        <tr key={o._id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                            <td className="px-5 py-3.5">
-                                                <span className="text-sm font-medium text-cyan-600">{o.orderId}</span>
-                                            </td>
-                                            <td className="px-5 py-3.5">
-                                                <span className="text-sm text-slate-900">{o.customer?.name}</span>
-                                                <p className="text-xs text-slate-400">{o.customer?.customerId}</p>
-                                            </td>
-                                            <td className="px-5 py-3.5">
-                                                <div className="space-y-1 my-1">
-                                                    {o.items?.filter((item: any) => item.serviceType === 'manual' || !item.service).map((item: any, idx: number) => {
-                                                        const qty = item.shippedQuantity !== null && item.shippedQuantity !== undefined ? item.shippedQuantity : item.quantity;
-                                                        const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
-                                                        return (
-                                                            <div key={idx} className="text-xs text-slate-600 flex items-center gap-1 flex-wrap">
-                                                                <span className="font-semibold text-slate-800">{qty}</span> x {item.itemName || item.serviceName}
-                                                                {hasDiff && (
-                                                                    <span className="text-[10px] text-slate-400 font-normal">
-                                                                        (ordered: {item.quantity})
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-right">
-                                                <span className="text-sm font-semibold text-slate-900">{currency}{o.totalAmount?.toLocaleString()}</span>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-center">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {orders.map((o) => (
+                                <div key={o._id} className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-full gap-4 animate-fadeIn">
+                                    <div className="space-y-4">
+                                        {/* Header Row */}
+                                        <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Order ID</span>
+                                                <span className="text-base font-extrabold text-cyan-600 block mt-0.5">{o.orderId}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date</span>
+                                                <span className="text-sm font-semibold text-slate-50 block mt-0.5">{new Date(o.createdAt).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Customer Row */}
+                                        <div className="pb-3 border-b border-slate-100">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Customer</span>
+                                            <span className="text-base font-bold text-slate-900 block mt-0.5">{o.customer?.name}</span>
+                                            <span className="text-xs text-slate-400 font-medium block mt-0.5">{o.customer?.customerId}</span>
+                                        </div>
+
+                                        {/* Status & Total Row */}
+                                        <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Status</span>
                                                 <select
                                                     value={o.status}
                                                     onChange={(e) => updateStatus(o._id, e.target.value)}
-                                                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border capitalize cursor-pointer focus:outline-none bg-transparent ${statusColors[o.status] || ''}`}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border capitalize cursor-pointer focus:outline-none bg-transparent ${statusColors[o.status] || ''}`}
                                                 >
                                                     {allStatuses.map((s) => (
                                                         <option key={s} value={s} className="bg-white text-slate-900">
@@ -684,49 +798,107 @@ const Orders = () => {
                                                         </option>
                                                     ))}
                                                 </select>
-                                            </td>
-                                            <td className="px-5 py-3.5">
-                                                <span className="text-sm text-slate-500">{new Date(o.createdAt).toLocaleDateString()}</span>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-center">
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <button
-                                                        onClick={() => navigate(`/orders/${o._id}`)}
-                                                        title="View Details"
-                                                        className="p-2 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
-                                                    >
-                                                        <HiOutlineEye className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openEditOrder(o)}
-                                                        title="Edit Order"
-                                                        className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                                                    >
-                                                        <HiOutlinePencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => cancelOrder(o._id)}
-                                                        title="Cancel/Delete Order"
-                                                        className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                                    >
-                                                        <HiOutlineTrash className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Amount</span>
+                                                <span className="text-lg font-black text-slate-900 block mt-0.5">
+                                                    {currency}{o.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Items list */}
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Items</span>
+                                            <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                                                {o.items?.map((item: any, idx: number) => {
+                                                    const qty = item.shippedQuantity !== null && item.shippedQuantity !== undefined ? item.shippedQuantity : item.quantity;
+                                                    const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
+                                                    return (
+                                                        <div key={idx} className="text-xs text-slate-600 flex items-center justify-between border-b border-dashed border-slate-100 pb-1.5 last:border-0 last:pb-0">
+                                                            <span className="font-medium text-slate-800">{item.itemName || item.serviceName}</span>
+                                                            <div className="flex items-center gap-1.5 shrink-0 ml-4">
+                                                                {hasDiff ? (
+                                                                    <>
+                                                                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-lg">
+                                                                            {qty} {item.unit}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-semibold text-slate-505 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-lg">
+                                                                            ord: {item.quantity}
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                                                                        {qty} {item.unit}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Actions Footer */}
+                                    <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3.5 mt-auto">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => navigate(`/orders/${o._id}`)}
+                                                className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:text-cyan-600 hover:border-cyan-200 hover:bg-cyan-50 text-xs font-semibold transition-all"
+                                                title="View Details"
+                                            >
+                                                <HiOutlineEye className="w-3.5 h-3.5" />
+                                                View
+                                            </button>
+                                            <button
+                                                onClick={() => openEditOrder(o)}
+                                                className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 text-xs font-semibold transition-all"
+                                                title="Edit Order"
+                                            >
+                                                <HiOutlinePencil className="w-3.5 h-3.5" />
+                                                Edit
+                                            </button>
+                                            {o.status === 'packed' && !o.isShipped && (
+                                                <button
+                                                    onClick={() => navigate(`/orders/${o._id}`, { state: { openShip: true } })}
+                                                    className="flex items-center gap-1 px-3 py-2 bg-[#1c2a5e] text-white hover:bg-[#2e3e78] rounded-xl text-xs font-semibold transition-all shadow"
+                                                    title="Ship & Create Invoice"
+                                                >
+                                                    <HiOutlineTruck className="w-3.5 h-3.5" />
+                                                    Ship
+                                                </button>
+                                            )}
+                                            {o.isShipped && (
+                                                <span className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-semibold select-none">
+                                                    <HiOutlineCheck className="w-3.5 h-3.5" />
+                                                    Invoiced
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => cancelOrder(o._id)}
+                                            disabled={user?.role !== 'admin'}
+                                            className="p-2 rounded-xl text-red-500 bg-red-50 hover:bg-red-100 hover:text-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-50 disabled:hover:text-red-500"
+                                            title={user?.role !== 'admin' ? "Only Admin can Cancel/Delete Order" : "Cancel/Delete Order"}
+                                        >
+                                            <HiOutlineTrash className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                        
+
                         {/* Pagination */}
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            totalItems={totalItems}
-                            itemsPerPage={itemsPerPage}
-                            onPageChange={setCurrentPage}
-                        />
+                        <div className="mt-6">
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                itemsPerPage={itemsPerPage}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
                     </>
                 )}
             </div>

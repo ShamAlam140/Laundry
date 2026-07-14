@@ -82,6 +82,15 @@ export default function RegisterScreen({ navigation }: any) {
             Alert.alert('Invalid Phone', 'Please enter a valid phone number.');
             return;
         }
+        if (!trimmedEmail) {
+            Alert.alert('Missing Field', 'Please enter your email address.');
+            return;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+            Alert.alert('Invalid Email', 'Please enter a valid email address.');
+            return;
+        }
         if (!trimmedPassword) {
             Alert.alert('Missing Field', 'Please enter a password.');
             return;
@@ -100,7 +109,7 @@ export default function RegisterScreen({ navigation }: any) {
             await register({
                 name: trimmedName,
                 phone: trimmedPhone,
-                email: trimmedEmail || undefined,
+                email: trimmedEmail,
                 address: trimmedAddress || undefined,
                 password: trimmedPassword,
             });
@@ -180,7 +189,7 @@ export default function RegisterScreen({ navigation }: any) {
                             />
                             <InputField
                                 icon="✉️"
-                                label="Email (Optional)"
+                                label="Email *"
                                 value={email}
                                 onChangeText={setEmail}
                                 placeholder="Enter your email"

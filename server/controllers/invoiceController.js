@@ -2,6 +2,7 @@ const Invoice = require('../models/Invoice');
 const Payment = require('../models/Payment');
 const Settings = require('../models/Settings');
 const Order = require('../models/Order');
+const sendEmail = require('../utils/emailService');
 
 // @desc    Get all invoices
 // @route   GET /api/invoices
@@ -241,7 +242,7 @@ exports.updateInvoice = async (req, res, next) => {
 // @access  Private (Admin, Manager, Cashier)
 exports.approveInvoice = async (req, res, next) => {
     try {
-        const invoice = await Invoice.findById(req.params.id).populate('order');
+        const invoice = await Invoice.findById(req.params.id).populate('order').populate('customer');
         if (!invoice) {
             return res.status(404).json({ success: false, message: 'Invoice not found' });
         }
@@ -254,14 +255,72 @@ exports.approveInvoice = async (req, res, next) => {
         try {
             const Notification = require('../models/Notification');
             await Notification.create({
-                recipient: invoice.customer,
+                recipient: invoice.customer?._id || invoice.customer,
                 recipientModel: 'Customer',
                 type: 'invoice-approved',
                 title: 'Invoice Approved',
                 message: `Your invoice ${invoice.invoiceId} is now approved and ready for payment. Total amount: $${invoice.totalAmount.toFixed(2)}.`,
                 relatedOrder: invoice.order?._id,
-                relatedCustomer: invoice.customer,
+                relatedCustomer: invoice.customer?._id || invoice.customer,
             });
+
+            // Send Email to Customer
+            if (invoice.customer && invoice.customer.email) {
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+                const publicUrl = `${frontendUrl}/public/invoice/${invoice._id}`;
+                const emailHtml = `
+                    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                        <div style="background: linear-gradient(135deg, #1c2a5e, #3b82f6); padding: 32px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">📄 Invoice Approved</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin-top: 8px; font-size: 14px; margin-bottom: 0;">Invoice #${invoice.invoiceId}</p>
+                        </div>
+                        <div style="padding: 32px;">
+                            <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">Dear ${invoice.customer.name},</p>
+                            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 0; margin-bottom: 24px;">
+                                We are pleased to inform you that your invoice <strong>${invoice.invoiceId}</strong> has been approved. The invoice details are summarized below:
+                            </p>
+                            
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #f1f5f9;">
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Invoice ID</span>
+                                    <span style="color: #334155; font-weight: 600; text-align: right; float: right;">${invoice.invoiceId}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Due Date</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">${invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-AU') : 'Due on receipt'}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
+                                <div style="display: block; font-size: 16px; font-weight: 700;">
+                                    <span style="color: #0f172a;">Total Amount</span>
+                                    <span style="color: #1c2a5e; text-align: right; float: right;">$${invoice.totalAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                            </div>
+
+                            <div style="text-align: center; margin: 32px 0;">
+                                <a href="${publicUrl}" style="background: linear-gradient(135deg, #1c2a5e, #3b82f6); color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 14px; display: inline-block;">
+                                    View & Download PDF Invoice
+                                </a>
+                            </div>
+                            
+                            <p style="color: #94a3b8; font-size: 12px; line-height: 1.6; margin-top: 0; margin-bottom: 0; text-align: center;">
+                                If you have any questions or require support, please feel free to reach out to us.
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Fire async email
+                sendEmail({
+                    email: invoice.customer.email,
+                    subject: `Invoice Approved #${invoice.invoiceId} - Peninsula Laundries`,
+                    html: emailHtml,
+                }).catch(err => {
+                    console.error('❌ Failed to send Invoice Approved email:', err.message);
+                });
+            }
         } catch (err) {
             console.error('Error creating customer notification for invoice approval:', err);
         }
@@ -269,6 +328,28 @@ exports.approveInvoice = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'Invoice approved successfully',
+            data: invoice,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get public invoice (no auth required)
+// @route   GET /api/invoices/public/:id
+// @access  Public
+exports.getPublicInvoice = async (req, res, next) => {
+    try {
+        const invoice = await Invoice.findById(req.params.id)
+            .populate('order')
+            .populate('customer');
+
+        if (!invoice) {
+            return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+
+        res.status(200).json({
+            success: true,
             data: invoice,
         });
     } catch (error) {

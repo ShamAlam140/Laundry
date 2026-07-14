@@ -26,6 +26,7 @@ const Shipped = lazy(() => import('./pages/Shipped'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const ProcessRefund = lazy(() => import('./pages/ProcessRefund'));
 const RefundAnalytics = lazy(() => import('./pages/RefundAnalytics'));
+const PublicInvoiceDetail = lazy(() => import('./pages/PublicInvoiceDetail'));
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -59,6 +60,7 @@ function App() {
                             {/* Public */}
                             <Route path="/login" element={<Login />} />
                             <Route path="/reset-password/:token" element={<ResetPassword />} />
+                            <Route path="/public/invoice/:invoiceId" element={<PublicInvoiceDetail />} />
 
                             {/* Protected — App Layout */}
                             <Route

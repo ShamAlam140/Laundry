@@ -128,6 +128,7 @@ export interface IOrder {
     // NEW FIELDS for refund tracking
     totalRefundAmount?: number;
     hasRefund?: boolean;
+    isShipped?: boolean;
     groupedItems?: Record<string, IOrderItem[]>;
 }
 

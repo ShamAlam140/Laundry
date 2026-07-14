@@ -14,12 +14,12 @@ env_variables:
   MONGO_URI: "mongodb+srv://jspcorporationptyltd:jspcorporationptyltd@cluster0.j1ehmld.mongodb.net/laundry"
   JWT_SECRET: "jdhjkjksdfgjkdshufh83475gf7485tygfre7"
   JWT_EXPIRE: "7d"
-  SMTP_HOST: "smtp.gmail.com"
+  SMTP_HOST: "smtp.office365.com"
   SMTP_PORT: "587"
-  SMTP_EMAIL: "your-email@gmail.com"
-  SMTP_PASSWORD: "your-app-password"
-  FROM_EMAIL: "noreply@susalabs.com"
-  FROM_NAME: "SusaLabs Laundry"
+  SMTP_EMAIL: "orders@peninsulalaundries.com.au"
+  SMTP_PASSWORD: "Lap5010!$"
+  FROM_EMAIL: "orders@peninsulalaundries.com.au"
+  FROM_NAME: "Peninsula Laundries"
   FRONTEND_URL: "https://jspcorporation-eedc8.web.app"
 
 handlers:

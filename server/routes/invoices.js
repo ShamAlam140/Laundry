@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getInvoices, getInvoice, updateInvoice, approveInvoice } = require('../controllers/invoiceController');
+const { getInvoices, getInvoice, updateInvoice, approveInvoice, getPublicInvoice } = require('../controllers/invoiceController');
 const {
     getMigratedInvoices,
     getMigratedInvoice,
@@ -9,10 +9,15 @@ const {
 } = require('../controllers/migratedInvoiceController');
 const { protect, authorize } = require('../middleware/auth');
 
+// Public route to view invoices (No Authentication Required)
+router.get('/public/:id', getPublicInvoice);
+
 router.use(protect);
 
 // Migrated invoice routes (must be registered BEFORE standard :id)
-router.route('/migrated').get(getMigratedInvoices).delete(clearMigratedInvoices);
+router.route('/migrated')
+    .get(getMigratedInvoices)
+    .delete(authorize('admin'), clearMigratedInvoices);
 router.route('/migrated/import').post(importMigratedInvoices);
 router.route('/migrated/:id').get(getMigratedInvoice);
 

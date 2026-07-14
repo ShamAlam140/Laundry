@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
 import {
     HiOutlineFilter,
@@ -12,6 +13,7 @@ import {
     HiOutlineCash,
     HiOutlineChevronDown,
     HiOutlineDocumentText,
+    HiOutlineTrash,
 } from 'react-icons/hi';
 
 const paymentMethodLabels: Record<string, { label: string; color: string }> = {
@@ -29,6 +31,7 @@ const Payments = () => {
     const [invoices, setInvoices] = useState<any[]>([]);
     const [form, setForm] = useState({ invoice: '', paymentMethod: 'cash', amount: '', note: '' });
     const { currency } = useSettings();
+    const { user } = useAuth();
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -137,6 +140,21 @@ const Payments = () => {
             fetchPayments();
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to record payment');
+        }
+    };
+
+    const handleDeletePayment = async (id: string) => {
+        if (user?.role !== 'admin') {
+            toast.error('Only Admins can delete payments');
+            return;
+        }
+        if (!confirm('Are you sure you want to delete this payment? This will increase the invoice balance due.')) return;
+        try {
+            await api.delete(`/payments/${id}`);
+            toast.success('Payment deleted successfully');
+            fetchPayments();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to delete payment');
         }
     };
 
@@ -328,6 +346,7 @@ const Payments = () => {
                                     <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
                                     <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">By</th>
                                     <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-5 py-3.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -372,6 +391,16 @@ const Payments = () => {
                                                         : ''}
                                                 </div>
                                             </td>
+                                            <td className="px-5 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleDeletePayment(p._id)}
+                                                    disabled={user?.role !== 'admin'}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title={user?.role !== 'admin' ? "Only Admin can delete payment" : "Delete Payment"}
+                                                >
+                                                    <HiOutlineTrash className="w-4 h-4" />
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -386,7 +415,7 @@ const Payments = () => {
                                         <td className="px-5 py-3 text-right font-bold text-emerald-600">
                                             {currency}{totalFiltered.toLocaleString()}
                                         </td>
-                                        <td colSpan={2} />
+                                        <td colSpan={3} />
                                     </tr>
                                 </tfoot>
                             )}

@@ -14,7 +14,6 @@ import {
     HiOutlineX,
     HiOutlineReceiptRefund,
     HiOutlineUpload,
-    HiOutlineClipboardCheck,
 } from 'react-icons/hi';
 
 import { HiOutlineCube, HiOutlineTruck } from 'react-icons/hi2';
@@ -67,12 +66,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             roles: ['admin', 'manager', 'cashier'],
         },
         {
-            label: 'Invoice Approval',
-            icon: HiOutlineClipboardCheck,
-            path: '/invoices/approval',
-            roles: ['admin', 'manager', 'cashier'],
-        },
-        {
             label: 'Migrate Invoices',
             icon: HiOutlineUpload,
             path: '/invoices?tab=migrated',
@@ -107,12 +100,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             icon: HiOutlineTruck,
             path: '/deliveries',
             roles: ['admin', 'manager', 'staff'],
-        },
-        {
-            label: 'Shipped',
-            icon: HiOutlineTruck,
-            path: '/shipped',
-            roles: ['admin', 'manager', 'cashier', 'staff'],
         },
         {
             label: 'User Management',

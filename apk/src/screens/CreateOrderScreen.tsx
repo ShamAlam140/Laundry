@@ -76,6 +76,33 @@ export default function CreateOrderScreen({ navigation }: any) {
 
     const fetchServices = async () => {
         setLoading(true);
+        const fallbackServices: ServiceItem[] = [
+            {
+                _id: 'mock-1',
+                name: 'Standard Wash & Fold',
+                serviceType: 'wash-fold',
+                pricePerUnit: 15.00,
+                unit: 'kg',
+                description: 'Wash, dry and neatly fold your everyday clothes.'
+            },
+            {
+                _id: 'mock-2',
+                name: 'Dry Cleaning - Suit',
+                serviceType: 'dry-cleaning',
+                pricePerUnit: 25.00,
+                unit: 'piece',
+                description: 'Professional dry-cleaning for standard 2-piece suits.'
+            },
+            {
+                _id: 'mock-3',
+                name: 'Ironing Only',
+                serviceType: 'ironing',
+                pricePerUnit: 3.50,
+                unit: 'piece',
+                description: 'Ironing service for shirts, trousers and sheets.'
+            }
+        ];
+
         try {
             const res = await api.get('/customer-portal/services', {
                 params: {
@@ -95,10 +122,10 @@ export default function CreateOrderScreen({ navigation }: any) {
 
                 return !service.isCustomerSpecific;
             });
-            setServices(scopedServices);
+            setServices(scopedServices.length > 0 ? scopedServices : fallbackServices);
         } catch (err) {
             console.error('Failed to load services:', err);
-            setServices([]);
+            setServices(fallbackServices);
         } finally {
             setLoading(false);
         }

@@ -20,7 +20,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (phone: string, password: string) => Promise<void>;
-    register: (data: { name: string; phone: string; email?: string; address?: string; password: string }) => Promise<void>;
+    register: (data: { name: string; phone: string; email: string; address?: string; password: string }) => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setCustomer(data);
     };
 
-    const register = async (data: { name: string; phone: string; email?: string; address?: string; password: string }) => {
+    const register = async (data: { name: string; phone: string; email: string; address?: string; password: string }) => {
         const res = await api.post('/customer-auth/register', data);
         const { token: newToken, data: customerData } = res.data;
         await AsyncStorage.setItem('customerToken', newToken);

@@ -392,11 +392,11 @@ const InvoiceApproval = () => {
                                     <img src="/logo.jpeg" alt="Peninsula Laundries" className="max-h-14 max-w-[110px] object-contain mb-1" />
                                     <span className="text-[7px] tracking-[2px] text-slate-400 uppercase font-semibold mb-2">L A U N D R I E S</span>
                                     <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>
                                         {viewInvoice.business?.website || 'peninsulalaundries.com.au'}
                                     </div>
                                     <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
                                         {viewInvoice.business?.email || 'orders@peninsulalaundries.com.au'}
                                     </div>
                                 </div>
@@ -408,7 +408,7 @@ const InvoiceApproval = () => {
                                     </div>
                                     <div className="text-xs text-slate-500 mb-2">T/A Peninsula Laundries</div>
                                     <div className="flex items-start gap-1.5 text-slate-600">
-                                        <svg className="w-3.5 h-3.5 mt-0.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                        <svg className="w-3.5 h-3.5 mt-0.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
                                         <span className="leading-relaxed">
                                             {viewInvoice.business?.address || '13 Redcliffe Gardens Drive'}<br />
                                             {viewInvoice.business?.suburb || 'Clontarf'}, {viewInvoice.business?.state || 'Queensland'} {viewInvoice.business?.postcode || '4019'}, Australia
@@ -423,7 +423,7 @@ const InvoiceApproval = () => {
                                         {viewInvoice.business?.taxNumber || viewInvoice.business?.abn || '31647801045'}
                                     </div>
                                     <div className="flex items-center justify-end gap-1.5 text-xs text-slate-600">
-                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015.33 12a19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                                        <svg className="w-3 h-3 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015.33 12a19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                                         {viewInvoice.business?.phone || '61475902921'}
                                     </div>
                                 </div>
@@ -438,7 +438,7 @@ const InvoiceApproval = () => {
                                     <div className="font-bold text-[#1a1a2e] text-sm mb-1">{viewInvoice.customer?.name || '—'}</div>
                                     {(viewInvoice.customer?.address || viewInvoice.customer?.suburb) && (
                                         <div className="flex items-start gap-1.5 text-slate-500 text-xs mb-0.5">
-                                            <svg className="w-3.5 h-3.5 mt-0.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                            <svg className="w-3.5 h-3.5 mt-0.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
                                             <span className="leading-relaxed">
                                                 {viewInvoice.customer?.address && <>{viewInvoice.customer.address}<br /></>}
                                                 {[viewInvoice.customer?.suburb || viewInvoice.customer?.city, viewInvoice.customer?.state, viewInvoice.customer?.postcode, 'Australia'].filter(Boolean).join(', ')}
@@ -447,13 +447,13 @@ const InvoiceApproval = () => {
                                     )}
                                     {viewInvoice.customer?.phone && (
                                         <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-0.5">
-                                            <svg className="w-3.5 h-3.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015.33 12a19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                                            <svg className="w-3.5 h-3.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015.33 12a19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                                             {viewInvoice.customer.phone}
                                         </div>
                                     )}
                                     {viewInvoice.customer?.email && (
                                         <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-                                            <svg className="w-3.5 h-3.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                            <svg className="w-3.5 h-3.5 text-[#1c2a5e] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
                                             {viewInvoice.customer.email}
                                         </div>
                                     )}
@@ -503,7 +503,6 @@ const InvoiceApproval = () => {
                                                 <tr className="bg-[#1c2a5e] text-white">
                                                     <th className="text-left py-2 px-3 font-semibold w-8">#</th>
                                                     <th className="text-left py-2 px-3 font-semibold">Item Name</th>
-                                                    <th className="text-left py-2 px-3 font-semibold w-24">Type</th>
                                                     <th className="text-center py-2 px-3 font-semibold w-20">Qty</th>
                                                     <th className="text-right py-2 px-3 font-semibold w-32">Rate</th>
                                                     <th className="text-right py-2 px-3 font-semibold w-28">Total</th>
@@ -511,77 +510,67 @@ const InvoiceApproval = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {editItems.map((item, index) => {
-                                                    const isManual = item.serviceType === 'manual';
-                                                    const rowSubtotal = (Number(item.quantity) || 0) * (Number(item.pricePerUnit) || 0);
-                                                    return (
-                                                        <tr key={index} className={`border-b border-slate-200 ${item.isRefunded ? 'bg-red-50/50' : 'hover:bg-amber-50/30'} transition-colors`}>
-                                                            <td className="py-2 px-3 text-slate-400 font-mono text-center">{index + 1}</td>
-                                                            <td className="py-1.5 px-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={item.itemName || item.serviceName || ''}
-                                                                    onChange={(e) => {
-                                                                        handleEditItemChange(index, 'itemName', e.target.value);
-                                                                        handleEditItemChange(index, 'serviceName', e.target.value);
-                                                                    }}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
-                                                                    placeholder="Item name…"
-                                                                />
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <select
-                                                                    value={item.serviceType || 'service'}
-                                                                    onChange={(e) => handleEditItemChange(index, 'serviceType', e.target.value)}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
-                                                                >
-                                                                    <option value="service">Billable</option>
-                                                                    <option value="manual">Tracking Only</option>
-                                                                </select>
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <input
-                                                                    type="number"
-                                                                    min="1"
-                                                                    value={item.quantity}
-                                                                    onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
-                                                                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-center font-semibold text-slate-800"
-                                                                />
-                                                            </td>
-                                                            <td className="py-1.5 px-2">
-                                                                <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-400 focus-within:border-transparent transition-all">
-                                                                    <span className="bg-slate-50 border-r border-slate-200 px-2 py-1.5 text-[10px] font-bold text-slate-400 select-none">
-                                                                        {currency}
-                                                                    </span>
+                                                {(() => {
+                                                    let visibleIndex = 0;
+                                                    return editItems.map((item, index) => {
+                                                        if (item.serviceType === 'manual') return null;
+                                                        visibleIndex++;
+                                                        const rowSubtotal = (Number(item.quantity) || 0) * (Number(item.pricePerUnit) || 0);
+                                                        return (
+                                                            <tr key={index} className={`border-b border-slate-200 ${item.isRefunded ? 'bg-red-50/50' : 'hover:bg-amber-50/30'} transition-colors`}>
+                                                                <td className="py-2 px-3 text-slate-400 font-mono text-center">{visibleIndex}</td>
+                                                                <td className="py-1.5 px-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={item.itemName || item.serviceName || ''}
+                                                                        onChange={(e) => {
+                                                                            handleEditItemChange(index, 'itemName', e.target.value);
+                                                                            handleEditItemChange(index, 'serviceName', e.target.value);
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-slate-800 font-medium"
+                                                                        placeholder="Item name…"
+                                                                    />
+                                                                </td>
+                                                                <td className="py-1.5 px-2">
                                                                     <input
                                                                         type="number"
-                                                                        min="0"
-                                                                        step="0.01"
-                                                                        value={item.pricePerUnit}
-                                                                        onChange={(e) => handleEditItemChange(index, 'pricePerUnit', e.target.value)}
-                                                                        className="w-full px-2 py-1.5 outline-none text-right font-semibold text-slate-800 text-xs border-none"
+                                                                        min="1"
+                                                                        value={item.quantity}
+                                                                        onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
+                                                                        className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none text-center font-semibold text-slate-800"
                                                                     />
-                                                                </div>
-                                                            </td>
-                                                            <td className="text-right py-2 px-3 font-bold text-slate-800">
-                                                                {isManual ? (
-                                                                    <span className="text-slate-400 text-[10px]">Not Billed</span>
-                                                                ) : (
-                                                                    <>{currency}{rowSubtotal.toFixed(2)}</>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-2 px-2 text-center">
-                                                                <button
-                                                                    onClick={() => handleRemoveEditItem(index)}
-                                                                    className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                                                                    title="Remove item"
-                                                                >
-                                                                    <HiOutlineTrash className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                                                </td>
+                                                                <td className="py-1.5 px-2">
+                                                                    <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-400 focus-within:border-transparent transition-all">
+                                                                        <span className="bg-slate-50 border-r border-slate-200 px-2 py-1.5 text-[10px] font-bold text-slate-400 select-none">
+                                                                            {currency}
+                                                                        </span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step="0.01"
+                                                                            value={item.pricePerUnit}
+                                                                            onChange={(e) => handleEditItemChange(index, 'pricePerUnit', e.target.value)}
+                                                                            className="w-full px-2 py-1.5 outline-none text-right font-semibold text-slate-800 text-xs border-none"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="text-right py-2 px-3 font-bold text-slate-800">
+                                                                    {currency}{rowSubtotal.toFixed(2)}
+                                                                </td>
+                                                                <td className="py-2 px-2 text-center">
+                                                                    <button
+                                                                        onClick={() => handleRemoveEditItem(index)}
+                                                                        className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                                        title="Remove item"
+                                                                    >
+                                                                        <HiOutlineTrash className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
                                             </tbody>
                                         </table>
                                         {/* Add Item Button */}
@@ -599,7 +588,6 @@ const InvoiceApproval = () => {
                                     (() => {
                                         const allItems = [...(viewInvoice.order?.items || [])];
                                         const services = allItems.filter(item => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-                                        const manualItems = allItems.filter(item => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
                                         const refundedItems = allItems.filter(item => item.isRefunded);
 
                                         const formatDate = (dateStr: string) => {
@@ -638,13 +626,17 @@ const InvoiceApproval = () => {
                                                                         {i === 0 ? formattedDate : '—'}
                                                                     </td>
                                                                     <td className="py-2 px-3 text-slate-900 font-medium">{item.serviceName || item.itemName}</td>
-                                                                    <td className="text-center py-2 px-3 text-slate-900">
-                                                                        <span>{item.shippedQuantity ?? item.quantity}</span>
-                                                                        {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                                            <span className="text-[10px] text-slate-400 block font-normal">
-                                                                                (ord: {item.quantity})
+                                                                    <td className="text-center py-2 px-3">
+                                                                        <div className="flex flex-col items-center gap-1">
+                                                                            <span className="text-[12px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                                                                {item.shippedQuantity ?? item.quantity} {item.unit}
                                                                             </span>
-                                                                        )}
+                                                                            {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
+                                                                                <span className="text-[10px] text-slate-500 font-medium bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                                    Ordered: {item.quantity}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                     <td className="text-right py-2 px-3 text-slate-900">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
                                                                     <td className="text-right py-2 px-3 text-slate-900 font-semibold">{currency}{Number(item.subtotal || 0).toFixed(2)}</td>
@@ -653,39 +645,7 @@ const InvoiceApproval = () => {
                                                         </>
                                                     )}
 
-                                                    {/* SECTION 2: ITEMS - TRACKING ONLY (NOT BILLED) */}
-                                                    {manualItems.length > 0 && (
-                                                        <>
-                                                            <tr className="bg-slate-100">
-                                                                <td colSpan={5} className="py-2 px-3 font-bold text-xs uppercase tracking-wide text-slate-700">
-                                                                    📦 Items - Tracking Only (Not Billed)
-                                                                </td>
-                                                            </tr>
-                                                            {manualItems.map((item, i) => (
-                                                                <tr key={`manual-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
-                                                                    <td className="py-2 px-3 text-slate-700">
-                                                                        {i === 0 ? formattedDate : '—'}
-                                                                    </td>
-                                                                    <td className="py-2 px-3 text-slate-900 font-medium">{item.itemName || item.serviceName}</td>
-                                                                    <td className="text-center py-2 px-3 text-slate-900">
-                                                                        <span>{item.shippedQuantity ?? item.quantity}</span>
-                                                                        {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                                            <span className="text-[10px] text-slate-400 block font-normal">
-                                                                                (ord: {item.quantity})
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="text-right py-2 px-3 text-slate-500 line-through">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
-                                                                    <td className="text-right py-2 px-3 text-slate-500 font-semibold">Not Billed</td>
-                                                                </tr>
-                                                            ))}
-                                                            <tr className="bg-slate-50 border-b border-slate-200">
-                                                                <td colSpan={5} className="py-2 px-3 text-center text-xs text-slate-600">
-                                                                    ℹ️ These items are tracked for damage reference only and NOT included in billing
-                                                                </td>
-                                                            </tr>
-                                                        </>
-                                                    )}
+
 
                                                     {/* SECTION 3: REFUNDED ITEMS */}
                                                     {refundedItems.length > 0 && (

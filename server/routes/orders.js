@@ -23,7 +23,10 @@ router.post('/bulk-import', authorize('admin', 'manager'), bulkImportOrders);
 
 router.route('/').get(getOrders).post(authorize('admin', 'manager', 'cashier'), createOrder);
 router.post('/:id/ship', authorize('admin', 'manager', 'cashier'), shipOrder);
-router.route('/:id').get(getOrder).put(updateOrder).delete(cancelOrder);
+router.route('/:id')
+    .get(getOrder)
+    .put(updateOrder)
+    .delete(authorize('admin'), cancelOrder);
 router.patch('/:id/status', updateOrderStatus);
 
 module.exports = router;

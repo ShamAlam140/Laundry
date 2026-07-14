@@ -8,6 +8,7 @@ const { createNotification } = require('./notificationController');
 const Notification = require('../models/Notification');
 const ServiceTimerService = require('../utils/serviceTimerService');
 const RefundRecommenderService = require('../utils/refundRecommenderService');
+const sendEmail = require('../utils/emailService');
 
 // @desc    Create order
 // @route   POST /api/orders
@@ -91,11 +92,10 @@ exports.createOrder = async (req, res, next) => {
                         });
                     }
                 }
-
                 item.serviceName = service.name;
                 item.serviceType = service.serviceType;
                 item.unit = service.unit;
-                item.pricePerUnit = service.pricePerUnit;
+                item.pricePerUnit = item.pricePerUnit !== undefined && item.pricePerUnit !== null ? Number(item.pricePerUnit) : service.pricePerUnit;
                 item.itemName = item.itemName || service.name;
             }
 
@@ -169,6 +169,106 @@ exports.createOrder = async (req, res, next) => {
                 relatedOrder: order._id,
                 relatedCustomer: customerId,
             });
+
+            if (customer.email) {
+                const itemsHtml = order.items.map(item => `
+                    <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px;">
+                            ${item.itemName || item.serviceName}
+                        </td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: center;">
+                            ${item.quantity} ${item.unit || 'piece'}
+                        </td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: right;">
+                            $${item.pricePerUnit.toFixed(2)}
+                        </td>
+                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px; text-align: right;">
+                            $${item.subtotal.toFixed(2)}
+                        </td>
+                    </tr>
+                `).join('');
+
+                const orderEmailHtml = `
+                    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                        <div style="background: linear-gradient(135deg, #06b6d4, #3b82f6); padding: 32px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">🧺 Order Confirmed</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin-top: 8px; font-size: 14px; margin-bottom: 0;">Order #${order.orderId}</p>
+                        </div>
+                        <div style="padding: 32px;">
+                            <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">Dear ${customer.name},</p>
+                            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 0; margin-bottom: 24px;">
+                                Thank you for choosing Peninsula Laundries! Your laundry order has been received and is now being processed. Below is your order summary:
+                            </p>
+                            
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Item</th>
+                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: center; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Qty</th>
+                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Rate</th>
+                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                            
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #f1f5f9;">
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Subtotal</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">$${order.subtotal.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                                ${order.discountAmount > 0 ? `
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Discount (${order.discountPercent}%)</span>
+                                    <span style="color: #ef4444; font-weight: 500; text-align: right; float: right;">-$${order.discountAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>` : ''}
+                                ${order.taxAmount > 0 ? `
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Tax (${order.taxPercent}%)</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+$${order.taxAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>` : ''}
+                                ${order.serviceCharge > 0 ? `
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Service Charge</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+$${order.serviceCharge.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>` : ''}
+                                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
+                                <div style="display: block; font-size: 16px; font-weight: 700;">
+                                    <span style="color: #0f172a;">Total Amount</span>
+                                    <span style="color: #06b6d4; text-align: right; float: right;">$${order.totalAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                            </div>
+                            
+                            ${order.deliveryDate ? `
+                            <div style="background: #ecfeff; border: 1px solid #c5f2f7; border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: center;">
+                                <p style="color: #083344; font-size: 14px; font-weight: 600; margin: 0;">
+                                    📅 Expected Delivery: ${new Date(order.deliveryDate).toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                </p>
+                            </div>` : ''}
+                            
+                            <p style="color: #94a3b8; font-size: 12px; line-height: 1.6; margin-top: 0; margin-bottom: 0; text-align: center;">
+                                If you have any questions, please contact our support team at orders@peninsulalaundries.com.au.
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Fire async email
+                sendEmail({
+                    email: customer.email,
+                    subject: `Order Confirmation #${order.orderId} - Peninsula Laundries`,
+                    html: orderEmailHtml,
+                }).catch(err => {
+                    console.error('❌ Failed to send Order Confirmation email:', err.message);
+                });
+            }
         } catch (err) {
             console.error('Error creating customer order creation notification:', err);
         }
@@ -795,7 +895,7 @@ exports.shipOrder = async (req, res, next) => {
         }
         const terms = creditDays > 0 ? `NET ${creditDays}` : 'Due on Receipt';
 
-        // Create Invoice (always starts as Pending Approval)
+        // Create Invoice (pending approval, to be approved manually in Invoices list/details)
         const invoice = await Invoice.create({
             order: order._id,
             customer: order.customer,
@@ -807,11 +907,21 @@ exports.shipOrder = async (req, res, next) => {
             paidAmount: 0,
             balanceDue: order.totalAmount,
             paymentStatus: 'unpaid',
-            isApproved: false, // Start pending approval
+            isApproved: false, // Pending approval
             isGenerated: true,
             dueDate,
             terms,
             createdBy: req.user._id,
+        });
+
+        // Notify admins/managers
+        createNotification({
+            recipientRoles: ['admin', 'manager'],
+            type: 'order-shipped',
+            title: 'Order Shipped & Invoice Generated',
+            message: `Order ${order.orderId} has been shipped. Invoice ${invoice.invoiceId} generated (pending approval) — Total: $${order.totalAmount.toFixed(2)}`,
+            relatedOrder: order._id,
+            relatedCustomer: order.customer,
         });
 
         res.status(200).json({

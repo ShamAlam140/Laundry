@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import type { ICustomer } from '../types';
 import Pagination from '../components/Pagination';
+import * as XLSX from 'xlsx';
 import {
     HiOutlineSearch,
     HiOutlinePlusCircle,
@@ -12,7 +14,10 @@ import {
     HiOutlinePhone,
     HiOutlineMail,
     HiOutlineX,
+    HiOutlineUpload,
+    HiOutlineDownload,
 } from 'react-icons/hi';
+import BulkCustomerImport from '../components/customer/BulkCustomerImport';
 
 type CustomServiceForm = {
     _id?: string;
@@ -100,8 +105,10 @@ const Customers = () => {
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [showBulkImport, setShowBulkImport] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(null);
     const { currency } = useSettings();
+    const { user } = useAuth();
     const [form, setForm] = useState<CustomerFormState>(createEmptyForm());
     const [masterServices, setMasterServices] = useState<any[]>([]);
     const [serviceSearchQuery, setServiceSearchQuery] = useState('');
@@ -329,6 +336,10 @@ const Customers = () => {
     };
 
     const handleDelete = async (id: string) => {
+        if (user?.role !== 'admin') {
+            toast.error('Only Admins can delete customers');
+            return;
+        }
         if (!confirm('Delete this customer?')) return;
         try {
             await api.delete(`/customers/${id}`);
@@ -336,6 +347,44 @@ const Customers = () => {
             fetchCustomers();
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed');
+        }
+    };
+
+    const handleExportCustomers = async (format: 'xlsx' | 'csv') => {
+        try {
+            toast.loading(`Preparing customer export...`, { id: 'customer-export-toast' });
+            const res = await api.get('/customers', { params: { limit: 100000, search: search || undefined, customerType: filterType || undefined } });
+            const allCustomers = res.data.data;
+
+            if (!allCustomers || allCustomers.length === 0) {
+                toast.error('No customers to export.', { id: 'customer-export-toast' });
+                return;
+            }
+
+            const exportData = allCustomers.map((c: any) => ({
+                'Name': c.name,
+                'Phone': c.phone,
+                'Email': c.email,
+                'Address': c.address || '',
+                'Type': c.customerType || 'walk-in',
+                'Premium': c.isPremium ? 'true' : 'false',
+                'Credit Days': c.creditDays || 0,
+                'Notification Frequency': c.notificationFrequency || 'none',
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+
+            if (format === 'xlsx') {
+                XLSX.writeFile(workbook, `customers_${Date.now()}.xlsx`);
+            } else {
+                XLSX.writeFile(workbook, `customers_${Date.now()}.csv`, { bookType: 'csv' });
+            }
+
+            toast.success(`Exported ${allCustomers.length} customers successfully!`, { id: 'customer-export-toast' });
+        } catch (err: any) {
+            toast.error(`Export failed: ${err.message || err}`, { id: 'customer-export-toast' });
         }
     };
 
@@ -347,9 +396,32 @@ const Customers = () => {
                     <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
                     <p className="text-sm text-slate-500 mt-1">{customers.length} total customers</p>
                 </div>
-                <button onClick={openCreate} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-md shadow-cyan-500/30">
-                    <HiOutlinePlusCircle className="w-5 h-5" /> Add Customer
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => handleExportCustomers('xlsx')}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-indigo-200"
+                        title="Export all customers to Excel"
+                    >
+                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export Excel
+                    </button>
+                    <button
+                        onClick={() => handleExportCustomers('csv')}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-600 hover:text-cyan-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-cyan-200"
+                        title="Export all customers to CSV"
+                    >
+                        <HiOutlineDownload className="w-3.5 h-3.5" /> Export CSV
+                    </button>
+                    <button
+                        onClick={() => setShowBulkImport(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-colors text-sm font-medium border border-emerald-200"
+                    >
+                        <HiOutlineUpload className="w-4 h-4" />
+                        Bulk Import CSV / Excel
+                    </button>
+                    <button onClick={openCreate} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-md shadow-cyan-500/30">
+                        <HiOutlinePlusCircle className="w-5 h-5" /> Add Customer
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -436,7 +508,12 @@ const Customers = () => {
                                                     <button onClick={() => openEdit(c)} className="p-2 rounded-lg text-slate-500 hover:text-cyan-600 hover:bg-white transition-colors">
                                                         <HiOutlinePencil className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={() => handleDelete(c._id)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-white transition-colors">
+                                                    <button
+                                                        onClick={() => handleDelete(c._id)}
+                                                        disabled={user?.role !== 'admin'}
+                                                        className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={user?.role !== 'admin' ? "Only Admin can delete customer" : "Delete Customer"}
+                                                    >
                                                         <HiOutlineTrash className="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -481,8 +558,8 @@ const Customers = () => {
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-cyan-500" />
                             </div>
                             <div>
-                                <label className="block text-sm text-slate-600 mb-1">Email</label>
-                                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                <label className="block text-sm text-slate-600 mb-1">Email *</label>
+                                <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-cyan-500" />
                             </div>
                             <div>
@@ -764,6 +841,16 @@ const Customers = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {showBulkImport && (
+                <BulkCustomerImport
+                    onClose={() => setShowBulkImport(false)}
+                    onSuccess={() => {
+                        setShowBulkImport(false);
+                        fetchCustomers();
+                    }}
+                />
             )}
         </div>
     );

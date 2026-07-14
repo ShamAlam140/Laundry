@@ -349,6 +349,7 @@ const Settings = () => {
                         <div>
                             <label className="block text-xs text-slate-500 mb-1">Currency</label>
                             <select value={settings.currency || 'AUD$'} onChange={(e) => setSettings({ ...settings, currency: e.target.value })} className={inputClass}>
+                                <option value="₹">₹ — Indian Rupee (INR)</option>
                                 <option value="AUD$">AUD$ — Australian Dollar (AUD)</option>
                                 <option value="$">$ — US Dollar (USD)</option>
                                 <option value="€">€ — Euro (EUR)</option>

@@ -41,7 +41,6 @@ const InvoiceDetail = () => {
     // Filter items into services, manual items, and refunded categories
     const allItems = [...(invoice.order?.items || [])];
     const services = allItems.filter(item => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-    const manualItems = allItems.filter(item => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn bg-white min-h-screen">
@@ -136,7 +135,7 @@ const InvoiceDetail = () => {
                             </div>
                             <div>
                                 <p className="text-slate-600 font-medium">TOTAL</p>
-                                <p className="font-bold text-slate-900 text-sm">{currency}{invoice.totalAmount.toLocaleString()}</p>
+                                <p className="font-bold text-slate-900 text-sm">{currency}{invoice.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                             </div>
                         </div>
                     </div>
@@ -173,58 +172,28 @@ const InvoiceDetail = () => {
                                                     <p className="text-xs text-blue-600">🔧 Service - Billable</p>
                                                 </div>
                                             </td>
-                                            <td className="text-center py-2 px-3 font-medium text-slate-900">
-                                                <span>{qty}</span>
-                                                {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                    <span className="text-[10px] text-slate-400 block font-normal">
-                                                        (ord: {item.quantity})
-                                                    </span>
-                                                )}
+                                            <td className="text-center py-2 px-3">
+                                                 <div className="flex flex-col items-center gap-1">
+                                                     <span className="text-[12px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                                         {qty} {item.unit}
+                                                     </span>
+                                                     {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
+                                                         <span className="text-[10px] text-slate-500 font-medium bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                             Ordered: {item.quantity}
+                                                         </span>
+                                                     )}
+                                                 </div>
                                             </td>
-                                            <td className="text-right py-2 px-3 text-slate-900">{currency}{item.pricePerUnit.toLocaleString()}</td>
-                                            <td className="text-right py-2 px-3 font-bold text-slate-900">{currency}{item.subtotal.toLocaleString()}</td>
+                                            <td className="text-right py-2 px-3 text-slate-900">{currency}{item.pricePerUnit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            <td className="text-right py-2 px-3 font-bold text-slate-900">{currency}{item.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     );
                                 })}
-                                
-                                {/* Manual Items - Non-billable */}
-                                {manualItems.map((item, idx) => {
-                                    const qty = item.shippedQuantity !== null && item.shippedQuantity !== undefined ? item.shippedQuantity : item.quantity;
-                                    return (
-                                        <tr key={`manual-${idx}`} className="border-b border-slate-100 hover:bg-emerald-25 bg-emerald-50">
-                                            <td className="py-2 px-3 text-slate-700">
-                                                {invoice.order?.deliveryDate ? new Date(invoice.order.deliveryDate).toLocaleDateString() : '02 MAY 2026'}
-                                            </td>
-                                            <td className="py-2 px-3">
-                                                <div>
-                                                    <p className="font-medium text-slate-900">{item.itemName}</p>
-                                                    <p className="text-xs text-emerald-600">📦 Item - Tracking Only</p>
-                                                </div>
-                                            </td>
-                                            <td className="text-center py-2 px-3 font-medium text-slate-900">
-                                                <span>{qty}</span>
-                                                {item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity && (
-                                                    <span className="text-[10px] text-slate-400 block font-normal">
-                                                        (ord: {item.quantity})
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="text-right py-2 px-3 text-slate-500 line-through">{currency}{item.pricePerUnit.toLocaleString()}</td>
-                                            <td className="text-right py-2 px-3 text-slate-500">Not Billed</td>
-                                        </tr>
-                                    );
-                                })}
+
                             </tbody>
                         </table>
                         
-                        {/* Note about manual items */}
-                        {manualItems.length > 0 && (
-                            <div className="p-2 bg-emerald-50 border-t border-emerald-200">
-                                <p className="text-xs text-emerald-700 text-center">
-                                    ℹ️ Items with green background are for damage tracking only and not included in billing
-                                </p>
-                            </div>
-                        )}
+
                     </div>
                 </div>
 
@@ -239,31 +208,31 @@ const InvoiceDetail = () => {
                             <div className="p-3 space-y-2 text-xs">
                                 <div className="flex justify-between">
                                     <span className="text-slate-700">Sub Total</span>
-                                    <span className="font-medium text-slate-900">{currency}{invoice.totalAmount.toLocaleString()}</span>
+                                    <span className="font-medium text-slate-900">{currency}{invoice.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-slate-700">Sales Tax</span>
-                                    <span className="font-medium text-slate-900">{currency}{(invoice.totalAmount * 0.05).toLocaleString()}</span>
+                                    <span className="font-medium text-slate-900">{currency}{(invoice.totalAmount * 0.05).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 {(invoice.totalRefundAmount || 0) > 0 && (
                                     <div className="flex justify-between text-red-600">
                                         <span>Total Refunded</span>
-                                        <span className="font-medium">-{currency}{(invoice.totalRefundAmount || 0).toLocaleString()}</span>
+                                        <span className="font-medium">-{currency}{(invoice.totalRefundAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 )}
                                 <hr className="border-slate-300" />
                                 <div className="flex justify-between font-bold text-sm bg-[#1c2a5e] text-white p-2 -m-3 mb-2 rounded bg-opacity-100">
                                     <span>TOTAL</span>
-                                    <span>{currency}{(invoice.totalAmount * 1.05 - (invoice.totalRefundAmount || 0)).toLocaleString()}</span>
+                                    <span>{currency}{(invoice.totalAmount * 1.05 - (invoice.totalRefundAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                     <span className="text-slate-700">Paid</span>
-                                    <span className="font-medium text-green-600">{currency}{invoice.paidAmount.toLocaleString()}</span>
+                                    <span className="font-medium text-green-600">{currency}{invoice.paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between font-bold text-sm">
                                     <span className="text-slate-900">Balance Due</span>
                                     <span className={`${invoice.balanceDue < 0 ? 'text-green-600' : invoice.balanceDue > 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                                        {currency}{Math.abs(invoice.balanceDue).toLocaleString()}
+                                        {currency}{Math.abs(invoice.balanceDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             </div>
@@ -284,10 +253,7 @@ const InvoiceDetail = () => {
                     </div>
                 </div>
 
-                {/* Disclaimer - Compact */}
-                <div className="text-xs text-slate-600 border-t border-slate-200 pt-2">
-                    <p className="font-medium">* Items marked with green background are for damage tracking only.</p>
-                </div>
+
             </div>
         </div>
     );

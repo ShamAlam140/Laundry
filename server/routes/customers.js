@@ -6,16 +6,19 @@ const {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+    bulkImportCustomers,
 } = require('../controllers/customerController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
+
+router.post('/bulk-import', authorize('admin', 'manager'), bulkImportCustomers);
 
 router.route('/').get(getCustomers).post(createCustomer);
 router
     .route('/:id')
     .get(getCustomer)
     .put(updateCustomer)
-    .delete(authorize('admin', 'manager'), deleteCustomer);
+    .delete(authorize('admin'), deleteCustomer);
 
 module.exports = router;
