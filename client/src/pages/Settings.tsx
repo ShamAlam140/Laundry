@@ -11,7 +11,7 @@ import {
     HiOutlinePlusCircle,
 } from 'react-icons/hi';
 
-type Tab = 'business' | 'billing' | 'services';
+type Tab = 'business' | 'billing' | 'services' | 'email';
 
 interface ServiceRow {
     number: string;
@@ -320,6 +320,7 @@ const Settings = () => {
                     { key: 'business' as Tab, label: '🏢 Business Profile' },
                     { key: 'billing' as Tab, label: '💰 Tax & Billing' },
                     { key: 'services' as Tab, label: '🧺 Services & Pricing' },
+                    { key: 'email' as Tab, label: '📧 Email Templates' },
                 ]).map(({ key, label }) => (
                     <button key={key} onClick={() => setActiveTab(key)}
                         className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === key
@@ -469,6 +470,35 @@ const Settings = () => {
                             <textarea rows={2} value={settings.invoiceFooter || ''}
                                 onChange={(e) => setSettings({ ...settings, invoiceFooter: e.target.value })}
                                 className={`${inputClass} resize-none`} />
+                        </div>
+                    </div>
+                    <button onClick={saveSettings} disabled={saving}
+                        className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 transition-all shadow-lg shadow-md shadow-cyan-500/30">
+                        {saving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                </div>
+            )}
+
+            {/* Email Templates Tab */}
+            {activeTab === 'email' && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
+                    <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                        📧 Email Message Templates
+                    </h2>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="block text-xs text-slate-500 mb-1">Order Confirmation Email Intro</label>
+                            <textarea rows={4} value={settings.orderEmailMessage || ''}
+                                onChange={(e) => setSettings({ ...settings, orderEmailMessage: e.target.value })}
+                                className={`${inputClass} resize-none`} />
+                            <p className="text-[10px] text-slate-400 mt-1">Introductory text shown in the order confirmation email before the order summary table.</p>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-500 mb-1">Invoice Approved Email Intro</label>
+                            <textarea rows={4} value={settings.invoiceEmailMessage || ''}
+                                onChange={(e) => setSettings({ ...settings, invoiceEmailMessage: e.target.value })}
+                                className={`${inputClass} resize-none`} />
+                            <p className="text-[10px] text-slate-400 mt-1">Introductory text shown in the invoice approved email. Use <code>{`{invoiceId}`}</code> as a placeholder for the invoice ID.</p>
                         </div>
                     </div>
                     <button onClick={saveSettings} disabled={saving}

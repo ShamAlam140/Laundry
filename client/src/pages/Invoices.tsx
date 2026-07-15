@@ -389,9 +389,9 @@ const Invoices = () => {
                         continue;
                     }
 
-                    const quantity = parseFloat(mapped.quantity) || 1;
-                    const unitAmount = parseFloat(mapped.unitAmount) || 0;
-                    const discount = parseFloat(mapped.discount) || 0;
+                    const quantity = parseFloat(String(mapped.quantity)) || 1;
+                    const unitAmount = parseFloat(String(mapped.unitAmount)) || 0;
+                    const discount = parseFloat(String(mapped.discount)) || 0;
 
                     const lineItem = {
                         inventoryItemCode: mapped.inventoryItemCode || '',

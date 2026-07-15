@@ -1,6 +1,6 @@
 {
   "name": "PeninsulaLaundries",
-  "version": "1.5.4",
+  "version": "1.5.6",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

@@ -30,9 +30,6 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
     const services = allItems.filter(
         (item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service,
     );
-    const manualItems = allItems.filter(
-        (item: any) => !item.isRefunded && (item.serviceType === 'manual' || !item.service),
-    );
     const refundedItems = allItems.filter((item: any) => item.isRefunded);
 
     const deliveryDate = order.deliveryDate;
@@ -41,7 +38,7 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
               day: '2-digit',
               month: 'short',
               year: 'numeric',
-          })
+           })
         : '—';
 
     const subtotal = inv.subtotal || 0;
@@ -127,7 +124,7 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
     td.red { text-align: right; color: #b91c1c; font-weight: 700; }
     tr.section-hdr td { background: #f1f5f9; font-weight: 700; font-size: 10px; text-transform: uppercase; color: #475569; padding: 8px 12px; }
     tr.info-row td { background: #f8fafc; text-align: center; font-size: 10px; color: #64748b; }
-
+ 
     /* ── BOTTOM ── */
     .bottom-section { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 10px; gap: 20px; }
     .note { font-size: 10px; color: #3b82f6; font-style: italic; }
@@ -220,17 +217,6 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
             <td class="right">${currency}${Number(item.subtotal || 0).toFixed(2)}</td>
           </tr>`).join('')}` : ''}
 
-      ${manualItems.length > 0 ? `
-        <tr class="section-hdr"><td colspan="5">📦 Items - Tracking Only (Not Billed)</td></tr>
-        ${manualItems.map((item: any, idx: number) => `
-          <tr>
-            <td>${idx === 0 ? formattedDate : '—'}</td>
-            <td>${item.itemName || item.serviceName}</td>
-            <td class="center">${item.quantity}</td>
-            <td class="strike">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</td>
-            <td class="not-billed">Not Billed</td>
-          </tr>`).join('')}
-        <tr class="info-row"><td colspan="5">ℹ️ These items are tracked for damage reference only and NOT included in billing</td></tr>` : ''}
 
       ${refundedItems.length > 0 ? `
         <tr class="section-hdr"><td colspan="5">🔄 Refunded Items</td></tr>
@@ -354,7 +340,6 @@ export const generateBatchInvoiceHTML = (
         const order = inv.order || {};
         const items = order.items || [];
         const services = items.filter((item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service);
-        const manualItems = items.filter((item: any) => !item.isRefunded && (item.serviceType === 'manual' || !item.service));
         const refundedItems = items.filter((item: any) => item.isRefunded);
         const deliveryDate = order.deliveryDate ? formatShortDate(order.deliveryDate) : formatShortDate(inv.createdAt);
         const due = Number(inv.balanceDue || 0);
@@ -373,24 +358,11 @@ export const generateBatchInvoiceHTML = (
                     <td class="right strong">${formatMoney(item.subtotal)}</td>
                 </tr>`).join('')}` : '';
 
-        const manualRows = manualItems.length > 0 ? `
-            <tr class="section-row"><td colspan="5">Items - Tracking Only (Not Billed)</td></tr>
-            ${manualItems.map((item: any, idx: number) => `
-                <tr>
-                    <td>${idx === 0 && services.length === 0 ? deliveryDate : '-'}</td>
-                    <td><strong>${esc(item.itemName || item.serviceName || 'Item')}</strong>
-                        <div class="muted">${esc(invoiceLabel)}${order.orderId ? ` | ${esc(order.orderId)}` : ''}</div></td>
-                    <td class="center">${Number(item.quantity || 0)}</td>
-                    <td class="right strike">${formatMoney(item.pricePerUnit)}</td>
-                    <td class="right muted-strong">Not Billed</td>
-                </tr>`).join('')}
-            <tr class="info-row"><td colspan="5">These items are tracked for damage reference only and NOT included in billing</td></tr>` : '';
-
         const refundedRows = refundedItems.length > 0 ? `
             <tr class="section-row"><td colspan="5">Refunded Items</td></tr>
             ${refundedItems.map((item: any, idx: number) => `
                 <tr>
-                    <td>${idx === 0 && services.length === 0 && manualItems.length === 0 ? deliveryDate : '-'}</td>
+                    <td>${idx === 0 && services.length === 0 ? deliveryDate : '-'}</td>
                     <td><strong>${esc(item.serviceName || item.itemName || 'Refunded item')}</strong>
                         ${item.refundReason ? `<div class="refund-note">Reason: ${esc(item.refundReason)}</div>` : ''}</td>
                     <td class="center">${Number(item.damagedQuantity || item.quantity || 0)}</td>
@@ -405,7 +377,7 @@ export const generateBatchInvoiceHTML = (
                     <span>Total ${formatMoney(inv.totalAmount)} | Paid ${formatMoney(inv.paidAmount)} | Due ${due < 0 ? '-' : ''}${formatMoney(Math.abs(due))}</span>
                 </div>
             </td></tr>
-            ${serviceRows || manualRows || refundedRows ? `${serviceRows}${manualRows}${refundedRows}` : `
+            ${serviceRows || refundedRows ? `${serviceRows}${refundedRows}` : `
                 <tr><td colspan="5" class="empty-row">No order items found for this invoice</td></tr>`}`;
     }).join('');
 

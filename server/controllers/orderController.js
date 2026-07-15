@@ -160,30 +160,36 @@ exports.createOrder = async (req, res, next) => {
 
         // Notify customer
         try {
+            const settings = await Settings.findById('global');
+            const currency = settings?.currency || '$';
+
             await Notification.create({
                 recipient: customerId,
                 recipientModel: 'Customer',
                 type: 'order-created',
                 title: 'Order Placed Successfully',
-                message: `Your order ${order.orderId} has been created successfully. Total amount is $${order.totalAmount.toFixed(2)}.`,
+                message: `Your order ${order.orderId} has been created successfully. Total amount is ${currency}${order.totalAmount.toFixed(2)}.`,
                 relatedOrder: order._id,
                 relatedCustomer: customerId,
             });
 
+            const orderEmailMessage = settings?.orderEmailMessage || 'Thank you for choosing Peninsula Laundries! Your laundry order has been received and is now being processed. Below is your order summary:';
+
             if (customer.email) {
-                const itemsHtml = order.items.map(item => `
+                const billableItems = order.items.filter(item => item.serviceType !== 'manual' && item.service);
+                const itemsHtml = billableItems.map(item => `
                     <tr>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px;">
-                            ${item.itemName || item.serviceName}
+                        <td style="padding: 10px 12px 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px;">
+                            ${item.serviceName || item.itemName || '—'}
                         </td>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: center;">
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: center;">
                             ${item.quantity} ${item.unit || 'piece'}
                         </td>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: right;">
-                            $${item.pricePerUnit.toFixed(2)}
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 14px; text-align: right;">
+                            ${currency}${item.pricePerUnit.toFixed(2)}
                         </td>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px; text-align: right;">
-                            $${item.subtotal.toFixed(2)}
+                        <td style="padding: 10px 0 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px; text-align: right;">
+                            ${currency}${item.subtotal.toFixed(2)}
                         </td>
                     </tr>
                 `).join('');
@@ -197,16 +203,16 @@ exports.createOrder = async (req, res, next) => {
                         <div style="padding: 32px;">
                             <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">Dear ${customer.name},</p>
                             <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 0; margin-bottom: 24px;">
-                                Thank you for choosing Peninsula Laundries! Your laundry order has been received and is now being processed. Below is your order summary:
+                                ${orderEmailMessage}
                             </p>
                             
                             <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
                                 <thead>
                                     <tr>
-                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Item</th>
-                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: center; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Qty</th>
-                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Rate</th>
-                                        <th style="padding: 8px 0; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600;">Total</th>
+                                        <th style="padding: 8px 12px 8px 0; border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 40%;">Service</th>
+                                        <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: center; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Qty</th>
+                                        <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Rate</th>
+                                        <th style="padding: 8px 0 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -217,31 +223,31 @@ exports.createOrder = async (req, res, next) => {
                             <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #f1f5f9;">
                                 <div style="display: block; margin-bottom: 8px; font-size: 14px;">
                                     <span style="color: #64748b;">Subtotal</span>
-                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">$${order.subtotal.toFixed(2)}</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">${currency}${order.subtotal.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>
                                 ${order.discountAmount > 0 ? `
                                 <div style="display: block; margin-bottom: 8px; font-size: 14px;">
                                     <span style="color: #64748b;">Discount (${order.discountPercent}%)</span>
-                                    <span style="color: #ef4444; font-weight: 500; text-align: right; float: right;">-$${order.discountAmount.toFixed(2)}</span>
+                                    <span style="color: #ef4444; font-weight: 500; text-align: right; float: right;">-${currency}${order.discountAmount.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>` : ''}
                                 ${order.taxAmount > 0 ? `
                                 <div style="display: block; margin-bottom: 8px; font-size: 14px;">
                                     <span style="color: #64748b;">Tax (${order.taxPercent}%)</span>
-                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+$${order.taxAmount.toFixed(2)}</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+${currency}${order.taxAmount.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>` : ''}
                                 ${order.serviceCharge > 0 ? `
                                 <div style="display: block; margin-bottom: 8px; font-size: 14px;">
                                     <span style="color: #64748b;">Service Charge</span>
-                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+$${order.serviceCharge.toFixed(2)}</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+${currency}${order.serviceCharge.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>` : ''}
                                 <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
                                 <div style="display: block; font-size: 16px; font-weight: 700;">
                                     <span style="color: #0f172a;">Total Amount</span>
-                                    <span style="color: #06b6d4; text-align: right; float: right;">$${order.totalAmount.toFixed(2)}</span>
+                                    <span style="color: #06b6d4; text-align: right; float: right;">${currency}${order.totalAmount.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>
                             </div>

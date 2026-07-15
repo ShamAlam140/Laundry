@@ -253,13 +253,16 @@ exports.approveInvoice = async (req, res, next) => {
 
         // Create notification for customer portal/APK
         try {
+            const settings = await Settings.findById('global') || {};
+            const currency = settings.currency || '$';
+
             const Notification = require('../models/Notification');
             await Notification.create({
                 recipient: invoice.customer?._id || invoice.customer,
                 recipientModel: 'Customer',
                 type: 'invoice-approved',
                 title: 'Invoice Approved',
-                message: `Your invoice ${invoice.invoiceId} is now approved and ready for payment. Total amount: $${invoice.totalAmount.toFixed(2)}.`,
+                message: `Your invoice ${invoice.invoiceId} is now approved and ready for payment. Total amount: ${currency}${invoice.totalAmount.toFixed(2)}.`,
                 relatedOrder: invoice.order?._id,
                 relatedCustomer: invoice.customer?._id || invoice.customer,
             });
@@ -268,6 +271,10 @@ exports.approveInvoice = async (req, res, next) => {
             if (invoice.customer && invoice.customer.email) {
                 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
                 const publicUrl = `${frontendUrl}/public/invoice/${invoice._id}`;
+                
+                let invoiceEmailMessage = settings?.invoiceEmailMessage || 'We are pleased to inform you that your invoice <strong>{invoiceId}</strong> has been approved. The invoice details are summarized below:';
+                invoiceEmailMessage = invoiceEmailMessage.replace('{invoiceId}', `<strong>${invoice.invoiceId}</strong>`);
+
                 const emailHtml = `
                     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
                         <div style="background: linear-gradient(135deg, #1c2a5e, #3b82f6); padding: 32px; text-align: center;">
@@ -277,7 +284,7 @@ exports.approveInvoice = async (req, res, next) => {
                         <div style="padding: 32px;">
                             <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">Dear ${invoice.customer.name},</p>
                             <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 0; margin-bottom: 24px;">
-                                We are pleased to inform you that your invoice <strong>${invoice.invoiceId}</strong> has been approved. The invoice details are summarized below:
+                                ${invoiceEmailMessage}
                             </p>
                             
                             <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #f1f5f9;">
@@ -294,7 +301,7 @@ exports.approveInvoice = async (req, res, next) => {
                                 <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
                                 <div style="display: block; font-size: 16px; font-weight: 700;">
                                     <span style="color: #0f172a;">Total Amount</span>
-                                    <span style="color: #1c2a5e; text-align: right; float: right;">$${invoice.totalAmount.toFixed(2)}</span>
+                                    <span style="color: #1c2a5e; text-align: right; float: right;">${currency}${invoice.totalAmount.toFixed(2)}</span>
                                     <div style="clear: both;"></div>
                                 </div>
                             </div>
@@ -348,9 +355,36 @@ exports.getPublicInvoice = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Invoice not found' });
         }
 
+        let settings = await Settings.findById('global');
+        if (!settings) {
+            settings = await Settings.create({ _id: 'global' });
+        }
+
         res.status(200).json({
             success: true,
-            data: invoice,
+            data: {
+                ...invoice.toObject(),
+                business: {
+                    name: settings.businessName,
+                    phone: settings.businessPhone,
+                    email: settings.businessEmail,
+                    address: settings.businessAddress,
+                    taxNumberLabel: settings.taxNumberLabel,
+                    taxNumber: settings.taxNumber,
+                    currency: settings.currency,
+                    taxRate: settings.taxRate,
+                    website: settings.website,
+                    companyName: settings.companyName,
+                    suburb: settings.suburb,
+                    state: settings.state,
+                    postcode: settings.postcode,
+                    bankAccountName: settings.bankAccountName,
+                    bankName: settings.bankName,
+                    bankBSB: settings.bankBSB,
+                    bankAccountNo: settings.bankAccountNo,
+                    abn: settings.abn || settings.taxNumber,
+                }
+            },
         });
     } catch (error) {
         next(error);
