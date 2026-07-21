@@ -1143,7 +1143,7 @@ const OrderDetail = () => {
                                                                 </button>
                                                             </td>
                                                             <td className="py-4 text-center">
-                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                <div className="text-sm font-semibold text-slate-400">
                                                                     {item.quantity}
                                                                 </div>
                                                             </td>
@@ -1154,7 +1154,7 @@ const OrderDetail = () => {
                                                                     max={item.quantity}
                                                                     value={qty || ''} 
                                                                     onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)} 
-                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                    className={`w-24 mx-auto text-center py-2 text-base font-bold rounded-full focus:outline-none transition-all hide-spinners ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
                                                                 />
                                                             </td>
                                                             <td className="py-4 text-center">
@@ -1227,7 +1227,7 @@ const OrderDetail = () => {
                                                                 </button>
                                                             </td>
                                                             <td className="py-4 text-center">
-                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                <div className="text-sm font-semibold text-slate-400">
                                                                     {item.quantity}
                                                                 </div>
                                                             </td>
@@ -1238,7 +1238,7 @@ const OrderDetail = () => {
                                                                     max={item.quantity}
                                                                     value={qty || ''} 
                                                                     onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)} 
-                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                    className={`w-24 mx-auto text-center py-2 text-base font-bold rounded-full focus:outline-none transition-all hide-spinners ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
                                                                 />
                                                             </td>
                                                             <td className="py-4 text-center">
@@ -1301,7 +1301,7 @@ const OrderDetail = () => {
                         {/* Header */}
                         <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900">Edit Order Items: {order.orderId}</h3>
+                                <h3 className="text-xl font-bold text-slate-900">Edit Order Items: #{order.orderId}</h3>
                                 <p className="text-sm text-slate-500 mt-1">
                                     Customer: <span className="font-bold text-slate-700">{order.customer?.name}</span> <span className="text-slate-400">({order.customer?.customerId || 'CUST-0047'})</span>
                                 </p>
@@ -1346,7 +1346,7 @@ const OrderDetail = () => {
                                                             <td className="py-4">
                                                                 <div className="flex flex-col">
                                                                     <span className="font-semibold text-slate-800 text-base">{item.name || item.serviceName}</span>
-                                                                    <span className="text-xs text-slate-400 mt-1">Price: {currency}{Number(item.pricePerUnit).toFixed(2)} / {item.unit}</span>
+                                                                    <span className="text-xs text-slate-400 mt-1">Price: {currency}{Number(item.pricePerUnit).toFixed(2).replace(/\.00$/, '')} / {item.unit}</span>
                                                                 </div>
                                                             </td>
                                                             <td className="py-4 text-center">
@@ -1359,7 +1359,7 @@ const OrderDetail = () => {
                                                                 </button>
                                                             </td>
                                                             <td className="py-4 text-center">
-                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                <div className="text-sm font-semibold text-slate-400">
                                                                     {orderedQty}
                                                                 </div>
                                                             </td>
@@ -1369,7 +1369,7 @@ const OrderDetail = () => {
                                                                     min={0} 
                                                                     value={editQty || ''} 
                                                                     onChange={(e) => handleEditQty(item._id, e.target.value)} 
-                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${editQty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                    className={`w-24 mx-auto text-center py-2 text-base font-bold rounded-full focus:outline-none transition-all hide-spinners ${editQty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
                                                                 />
                                                             </td>
                                                             <td className="py-4 text-center">
@@ -1463,7 +1463,7 @@ const OrderDetail = () => {
                                                                     min={0} 
                                                                     value={c.quantity || ''} 
                                                                     onChange={(e) => handleCustomChange(idx, 'quantity', Math.max(0, parseInt(e.target.value) || 0))} 
-                                                                    className="w-16 mx-auto text-center py-1.5 font-bold rounded-full border border-slate-200 focus:outline-none focus:border-cyan-400 text-slate-800" 
+                                                                    className="w-24 mx-auto text-center py-2 text-base font-bold rounded-full border border-slate-200 focus:outline-none focus:border-cyan-400 text-slate-800 hide-spinners" 
                                                                 />
                                                             </td>
                                                             <td className="py-4 text-center">
