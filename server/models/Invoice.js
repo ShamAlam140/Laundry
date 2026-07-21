@@ -16,8 +16,12 @@ const invoiceSchema = new mongoose.Schema(
         order: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Order',
-            required: true,
+            required: false, // Changed to false to allow linkedOrders
         },
+        linkedOrders: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Order',
+        }],
         customer: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Customer',
@@ -71,6 +75,14 @@ const invoiceSchema = new mongoose.Schema(
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
+        },
+        cycleReadyDate: {
+            type: Date,
+            default: null,
+        },
+        isCycleInvoice: {
+            type: Boolean,
+            default: false,
         },
         
         // NEW FIELDS for refund tracking

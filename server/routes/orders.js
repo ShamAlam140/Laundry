@@ -5,11 +5,11 @@ const {
     getOrders,
     getOrder,
     updateOrderStatus,
-    updateOrder,
     cancelOrder,
     getDashboardStats,
     bulkImportOrders,
     shipOrder,
+    updateOrder,
 } = require('../controllers/orderController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -25,7 +25,7 @@ router.route('/').get(getOrders).post(authorize('admin', 'manager', 'cashier'), 
 router.post('/:id/ship', authorize('admin', 'manager', 'cashier'), shipOrder);
 router.route('/:id')
     .get(getOrder)
-    .put(updateOrder)
+    .put(authorize('admin', 'manager', 'cashier'), updateOrder)
     .delete(authorize('admin'), cancelOrder);
 router.patch('/:id/status', updateOrderStatus);
 

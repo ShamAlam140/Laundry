@@ -557,6 +557,8 @@ const Invoices = () => {
             if (filterStatus) params.paymentStatus = filterStatus;
             if (activeTab === 'pending') {
                 params.isApproved = 'false';
+            } else if (activeTab === 'cycle') {
+                params.tab = 'cycle';
             }
             
             const res = await api.get('/invoices', { params });
@@ -1883,6 +1885,16 @@ const Invoices = () => {
                     Pending Approval
                 </button>
                 <button
+                    onClick={() => setSearchParams({ tab: 'cycle' })}
+                    className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                        activeTab === 'cycle'
+                            ? 'border-cyan-500 text-cyan-600'
+                            : 'border-transparent text-slate-400 hover:text-slate-700'
+                    }`}
+                >
+                    Cycle Invoices
+                </button>
+                <button
                     onClick={() => setSearchParams({ tab: 'migrated' })}
                     className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
                         activeTab === 'migrated'
@@ -2014,33 +2026,37 @@ const Invoices = () => {
                                         Showing <span className="font-semibold text-slate-700">{filteredInvoices.length}</span> of {invoices.length} invoices
                                     </p>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                            onClick={() => openBatchInvoices('view')}
-                                            disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
-                                            title="View all filtered invoices"
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:text-cyan-700 hover:border-cyan-200 hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                            <HiOutlineEye className="w-3.5 h-3.5" />
-                                            {batchAction === 'view' ? 'Loading...' : 'View All'}
-                                        </button>
-                                        <button
-                                            onClick={() => openBatchInvoices('pdf')}
-                                            disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
-                                            title="Print or save all filtered invoices as PDF"
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                            <HiOutlineDownload className="w-3.5 h-3.5" />
-                                            {batchAction === 'pdf' ? 'Loading...' : 'PDF All'}
-                                        </button>
-                                        <button
-                                            onClick={() => openBatchInvoices('print')}
-                                            disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
-                                            title="Print all filtered invoices"
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                            <HiOutlinePrinter className="w-3.5 h-3.5" />
-                                            {batchAction === 'print' ? 'Loading...' : 'Print All'}
-                                        </button>
+                                        {activeTab !== 'cycle' && (
+                                            <>
+                                                <button
+                                                    onClick={() => openBatchInvoices('view')}
+                                                    disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
+                                                    title="View all filtered invoices"
+                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:text-cyan-700 hover:border-cyan-200 hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    <HiOutlineEye className="w-3.5 h-3.5" />
+                                                    {batchAction === 'view' ? 'Loading...' : 'View All'}
+                                                </button>
+                                                <button
+                                                    onClick={() => openBatchInvoices('pdf')}
+                                                    disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
+                                                    title="Print or save all filtered invoices as PDF"
+                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    <HiOutlineDownload className="w-3.5 h-3.5" />
+                                                    {batchAction === 'pdf' ? 'Loading...' : 'PDF All'}
+                                                </button>
+                                                <button
+                                                    onClick={() => openBatchInvoices('print')}
+                                                    disabled={filteredInvoices.length === 0 || Boolean(batchAction)}
+                                                    title="Print all filtered invoices"
+                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    <HiOutlinePrinter className="w-3.5 h-3.5" />
+                                                    {batchAction === 'print' ? 'Loading...' : 'Print All'}
+                                                </button>
+                                            </>
+                                        )}
                                         <button
                                             onClick={clearFilters}
                                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-red-500 hover:text-red-700 hover:bg-red-50 font-medium transition-colors"
@@ -2114,7 +2130,7 @@ const Invoices = () => {
                                                         <div className="text-right">
                                                             <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Order ID</span>
                                                             <div className="text-xs font-mono font-bold text-slate-600 mt-0.5">
-                                                                {inv.order?.orderId || '—'}
+                                                                {inv.isCycleInvoice && inv.linkedOrders?.length > 0 ? `Multiple (${inv.linkedOrders.length})` : (inv.order?.orderId || '—')}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2130,11 +2146,13 @@ const Invoices = () => {
 
                                                 <div className="border-t border-slate-100 pt-2.5 mt-auto flex justify-between items-center">
                                                     <div>
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date</span>
-                                                        <div className="text-xs font-semibold text-slate-600 mt-0.5">
-                                                            {inv.createdAt
-                                                                ? new Date(inv.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                                                : '—'}
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                            {activeTab === 'cycle' ? 'Cycle Completes' : 'Date'}
+                                                        </span>
+                                                        <div className={`text-xs font-semibold mt-0.5 ${activeTab === 'cycle' ? 'text-cyan-600' : 'text-slate-600'}`}>
+                                                            {activeTab === 'cycle'
+                                                                ? (inv.cycleReadyDate ? new Date(inv.cycleReadyDate).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—')
+                                                                : (inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—')}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
@@ -2735,7 +2753,21 @@ const Invoices = () => {
                                 ) : (
                                     /* ── READ-ONLY TABLE (original) ── */
                                     (() => {
-                                        const allItems = [...(viewInvoice.order?.items || [])];
+                                        const allItems: any[] = [];
+                                        if (viewInvoice.order && viewInvoice.order.items) {
+                                            allItems.push(...viewInvoice.order.items.map((item: any) => ({ ...item, deliveryDate: viewInvoice.order.deliveryDate })));
+                                        }
+                                        if (viewInvoice.linkedOrders && viewInvoice.linkedOrders.length > 0) {
+                                            viewInvoice.linkedOrders.forEach((lo: any) => {
+                                                if (lo.items) {
+                                                    allItems.push(...lo.items.map((item: any) => ({ ...item, deliveryDate: lo.deliveryDate })));
+                                                }
+                                            });
+                                        }
+
+                                        // Sort items by delivery date
+                                        allItems.sort((a, b) => new Date(a.deliveryDate || 0).getTime() - new Date(b.deliveryDate || 0).getTime());
+
                                         const services = allItems.filter(item => !item.isRefunded && item.serviceType !== 'manual' && item.service);
                                         const refundedItems = allItems.filter(item => item.isRefunded);
                                         
@@ -2743,9 +2775,6 @@ const Invoices = () => {
                                             if (!dateStr) return '—';
                                             return new Date(dateStr).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
                                         };
-                                        
-                                        const deliveryDate = viewInvoice.order?.deliveryDate;
-                                        const formattedDate = formatDate(deliveryDate);
                                         
                                         return (
                                             <table className="w-full text-xs">
@@ -2769,10 +2798,15 @@ const Invoices = () => {
                                                                     🔧 Services - Billable
                                                                 </td>
                                                             </tr>
-                                                            {services.map((item, i) => (
+                                                            {services.map((item, i) => {
+                                                                const currentDate = formatDate(item.deliveryDate);
+                                                                const prevDate = i > 0 ? formatDate(services[i-1].deliveryDate) : null;
+                                                                const showDate = i === 0 || currentDate !== prevDate;
+                                                                
+                                                                return (
                                                                 <tr key={`service-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
-                                                                    <td className="py-2 px-3 text-slate-700">
-                                                                        {i === 0 ? formattedDate : '—'}
+                                                                    <td className="py-2 px-3 text-slate-700 font-medium">
+                                                                        {showDate ? currentDate : <span className="text-slate-400 tracking-widest">----</span>}
                                                                     </td>
                                                                     <td className="py-2 px-3 text-slate-900 font-medium">{item.serviceName || item.itemName}</td>
                                                                     <td className="text-center py-2 px-3">
@@ -2790,7 +2824,8 @@ const Invoices = () => {
                                                                     <td className="text-right py-2 px-3 text-slate-900">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
                                                                     <td className="text-right py-2 px-3 text-slate-900 font-semibold">{currency}{Number(item.subtotal || 0).toFixed(2)}</td>
                                                                 </tr>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </>
                                                     )}
 
@@ -2803,10 +2838,15 @@ const Invoices = () => {
                                                                     🔄 Refunded Items
                                                                 </td>
                                                             </tr>
-                                                            {refundedItems.map((item, i) => (
+                                                            {refundedItems.map((item, i) => {
+                                                                const currentDate = formatDate(item.deliveryDate);
+                                                                const prevDate = i > 0 ? formatDate(refundedItems[i-1].deliveryDate) : null;
+                                                                const showDate = i === 0 || currentDate !== prevDate;
+
+                                                                return (
                                                                 <tr key={`refund-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
-                                                                    <td className="py-2 px-3 text-slate-700">
-                                                                        {i === 0 ? formattedDate : '—'}
+                                                                    <td className="py-2 px-3 text-slate-700 font-medium">
+                                                                        {showDate ? currentDate : <span className="text-slate-400 tracking-widest">----</span>}
                                                                     </td>
                                                                     <td className="py-2 px-3">
                                                                         <div className="text-slate-900 font-medium">{item.serviceName || item.itemName}</div>
@@ -2818,7 +2858,8 @@ const Invoices = () => {
                                                                     <td className="text-right py-2 px-3 text-slate-900">{currency}{Number(item.pricePerUnit || 0).toFixed(2)}</td>
                                                                     <td className="text-right py-2 px-3 text-red-700 font-semibold">-{currency}{Number(item.refundAmount || item.subtotal || 0).toFixed(2)}</td>
                                                                 </tr>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </>
                                                     )}
                                                 </tbody>

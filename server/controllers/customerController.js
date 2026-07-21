@@ -168,8 +168,8 @@ exports.getCustomer = async (req, res, next) => {
 // @access  Private
 exports.createCustomer = async (req, res, next) => {
     try {
-        const { name, phone, email, address, customerType, isPremium = false, customServices = [], notificationFrequency = 'none' } = req.body;
-        const customer = await Customer.create({ name, phone, email, address, customerType, isPremium, notificationFrequency });
+        const { name, phone, email, address, customerType, isPremium = false, customServices = [], notificationFrequency = 'none', creditDays } = req.body;
+        const customer = await Customer.create({ name, phone, email, address, customerType, isPremium, notificationFrequency, creditDays });
         const savedServices = await syncCustomerServices(customer, customServices);
 
         res.status(201).json({
@@ -186,10 +186,11 @@ exports.createCustomer = async (req, res, next) => {
 // @access  Private
 exports.updateCustomer = async (req, res, next) => {
     try {
-        const { name, phone, email, address, customerType, isPremium, customServices, notificationFrequency } = req.body;
+        const { name, phone, email, address, customerType, isPremium, customServices, notificationFrequency, creditDays } = req.body;
         const updates = { name, phone, email, address, customerType };
         if (isPremium !== undefined) updates.isPremium = isPremium;
         if (notificationFrequency !== undefined) updates.notificationFrequency = notificationFrequency;
+        if (creditDays !== undefined) updates.creditDays = creditDays;
 
         const customer = await Customer.findByIdAndUpdate(
             req.params.id,

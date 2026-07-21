@@ -6,6 +6,7 @@ const Service = require('../models/Service');
 const Settings = require('../models/Settings');
 const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
+const sendEmail = require('../utils/emailService');
 
 // @desc    Get customer's orders
 // @route   GET /api/customer-portal/orders
@@ -85,6 +86,10 @@ exports.getMyInvoices = async (req, res, next) => {
                 path: 'order',
                 select: 'orderId status items totalAmount deliveryDate'
             })
+            .populate({
+                path: 'linkedOrders',
+                select: 'orderId status items totalAmount deliveryDate'
+            })
             .populate('customer', 'customerId name phone email address customerType')
             .sort('-createdAt')
             .skip(skip)
@@ -143,6 +148,9 @@ exports.getMyInvoice = async (req, res, next) => {
             isApproved: true,
         }).populate({
             path: 'order',
+            select: 'orderId status items totalAmount deliveryDate',
+        }).populate({
+            path: 'linkedOrders',
             select: 'orderId status items totalAmount deliveryDate',
         }).populate('customer', 'customerId name phone email address customerType');
 
@@ -369,7 +377,7 @@ exports.createMyOrder = async (req, res, next) => {
             subtotal,
             taxAmount,
             totalAmount,
-            isApproved: !isCycleCustomer,
+            isApproved: false, // Invoices start as pending/unapproved
             isGenerated: !isCycleCustomer,
         });
 
@@ -394,6 +402,89 @@ exports.createMyOrder = async (req, res, next) => {
                 relatedOrder: order._id,
                 relatedCustomer: req.customer._id,
             });
+
+            // Send Order Confirmation Email to Customer
+            const customerEmail = req.customer.email;
+            if (customerEmail) {
+                const currency = settings?.currency || '$';
+                const itemsHtml = order.items.map(i => `
+                    <tr>
+                        <td style="padding: 12px 12px 12px 0; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-size: 14px; font-weight: 500;">
+                            ${i.serviceName || i.itemName}
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #475569; font-size: 14px;">
+                            ${i.quantity}
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #475569; font-size: 14px;">
+                            ${currency}${(i.pricePerUnit || 0).toFixed(2)}
+                        </td>
+                        <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #0f172a; font-size: 14px; font-weight: 600;">
+                            ${currency}${(i.subtotal || 0).toFixed(2)}
+                        </td>
+                    </tr>
+                `).join('');
+
+                const orderEmailHtml = `
+                    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                        <div style="background: linear-gradient(135deg, #06b6d4, #3b82f6); padding: 32px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">🧺 Order Confirmed</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin-top: 8px; font-size: 14px; margin-bottom: 0;">Order #${order.orderId}</p>
+                        </div>
+                        <div style="padding: 32px;">
+                            <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">Dear ${req.customer.name},</p>
+                            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 0; margin-bottom: 24px;">
+                                Thank you for placing your order with Peninsula Laundries via Mobile App. We have received your order and our team will process it shortly.
+                            </p>
+                            
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px 12px 8px 0; border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 40%;">Service</th>
+                                        <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: center; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Qty</th>
+                                        <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Rate</th>
+                                        <th style="padding: 8px 0 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: right; color: #475569; font-size: 12px; text-transform: uppercase; font-weight: 600; width: 20%;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                            
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #f1f5f9;">
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Subtotal</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">${currency}${order.subtotal.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                                ${order.taxAmount > 0 ? `
+                                <div style="display: block; margin-bottom: 8px; font-size: 14px;">
+                                    <span style="color: #64748b;">Tax (${order.taxPercent || 0}%)</span>
+                                    <span style="color: #334155; font-weight: 500; text-align: right; float: right;">+${currency}${order.taxAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>` : ''}
+                                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
+                                <div style="display: block; font-size: 16px; font-weight: 700;">
+                                    <span style="color: #0f172a;">Total Amount</span>
+                                    <span style="color: #06b6d4; text-align: right; float: right;">${currency}${order.totalAmount.toFixed(2)}</span>
+                                    <div style="clear: both;"></div>
+                                </div>
+                            </div>
+                            
+                            <p style="color: #94a3b8; font-size: 12px; line-height: 1.6; margin-top: 0; margin-bottom: 0; text-align: center;">
+                                If you have any questions, please contact our support team at orders@peninsulalaundries.com.au.
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                sendEmail({
+                    email: customerEmail,
+                    subject: `Order Confirmation #${order.orderId} - Peninsula Laundries`,
+                    html: orderEmailHtml,
+                }).catch(err => {
+                    console.error('❌ Failed to send Mobile Order Confirmation email:', err.message);
+                });
+            }
         } catch (err) {
             console.error('Error creating customer order creation notification:', err);
         }
@@ -557,6 +648,10 @@ exports.getFilteredInvoices = async (req, res, next) => {
         const invoices = await Invoice.find(filter)
             .populate({
                 path: 'order',
+                select: 'orderId status items totalAmount deliveryDate'
+            })
+            .populate({
+                path: 'linkedOrders',
                 select: 'orderId status items totalAmount deliveryDate'
             })
             .populate('customer', 'customerId name phone email address customerType')

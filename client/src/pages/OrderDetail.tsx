@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -12,6 +12,8 @@ import {
     HiOutlinePrinter,
     HiOutlineX,
     HiOutlineDocumentText,
+    HiOutlinePencil,
+    HiOutlineTrash,
 } from 'react-icons/hi';
 import { HiOutlineCube, HiOutlineTruck } from 'react-icons/hi2';
 
@@ -159,6 +161,163 @@ const OrderDetail = () => {
             setSubmitting(false);
         }
     };
+
+        // Edit Modal State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editQuantities, setEditQuantities] = useState<Record<string, number>>({});
+    const [customItems, setCustomItems] = useState<any[]>([]);
+    const [masterServices, setMasterServices] = useState<any[]>([]);
+    const [savingEdits, setSavingEdits] = useState(false);
+    const hasCheckedEdit = useRef(false);
+
+    useEffect(() => {
+        if (order && (location.state as any)?.openEdit && !order.isShipped && order.status !== 'cancelled' && !hasCheckedEdit.current) {
+            hasCheckedEdit.current = true;
+            window.history.replaceState({}, document.title);
+            openEditModal();
+        }
+    }, [order, location.state]);
+
+    const openEditModal = async () => {
+        if (!order) return;
+        let services: any[] = [];
+        try {
+            const res = await api.get('/services', { params: { active: true, customerId: order.customer?._id } });
+            services = (res.data.data || res.data || []).map((s: any) => ({ ...s, name: s.name || s.serviceName, serviceName: s.serviceName || s.name }));
+        } catch (err) {
+            console.error('Failed to fetch services', err);
+        }
+
+        const existingServices = order.items?.filter((i: any) => i.serviceType !== 'manual' && i.service) || [];
+        existingServices.forEach((es: any) => {
+            if (!services.some(s => s._id === es.service)) {
+                services.push({ _id: es.service, name: es.serviceName, serviceName: es.serviceName, serviceType: es.serviceType, pricePerUnit: es.pricePerUnit, unit: es.unit });
+            }
+        });
+        setMasterServices(services);
+
+        const initialQty: Record<string, number> = {};
+        services.forEach(s => {
+            const found = order.items?.find((i: any) => i.service === s._id);
+            initialQty[s._id] = found ? found.quantity : 0;
+        });
+        setEditQuantities(initialQty);
+
+        const manual = order.items?.filter((i: any) => i.serviceType === 'manual') || [];
+        setCustomItems(manual.map((i: any) => ({ ...i })));
+        setShowEditModal(true);
+    };
+
+    const closeEditModal = () => {
+        setShowEditModal(false);
+        setEditQuantities({});
+        setCustomItems([]);
+    };
+
+    const handleEditQty = (srvId: string, val: string) => {
+        if (val === '') { setEditQuantities(prev => ({ ...prev, [srvId]: 0 })); return; }
+        const parsed = Math.max(0, parseFloat(val) || 0);
+        setEditQuantities(prev => ({ ...prev, [srvId]: parsed }));
+    };
+
+    const toggleServiceQty = (srvId: string) => {
+        setEditQuantities(prev => {
+            const current = prev[srvId] ?? 0;
+            const original = order?.items?.find((i: any) => i.service === srvId);
+            const fallback = (original && original.quantity > 0) ? original.quantity : 1;
+            return { ...prev, [srvId]: current > 0 ? 0 : fallback };
+        });
+    };
+
+    const handleCustomChange = (idx: number, field: string, val: any) => {
+        setCustomItems(prev => {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], [field]: val };
+            return copy;
+        });
+    };
+    const addCustomItem = () => {
+        setCustomItems(prev => [...prev, { _id: `temp-custom-${Date.now()}`, serviceType: 'manual', itemName: '', quantity: 1, pricePerUnit: 0, unit: 'piece' }]);
+    };
+    const removeCustomItem = (idx: number) => {
+        setCustomItems(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const fillAllEditServices = () => {
+        if (!order) return;
+        setEditQuantities(prev => {
+            const next = { ...prev };
+            masterServices.forEach(s => {
+                const found = order.items?.find((i: any) => i.service === s._id);
+                next[s._id] = found ? found.quantity : 1;
+            });
+            return next;
+        });
+    };
+
+    const fillAllEditCustom = () => {
+        setCustomItems(prev => prev.map(c => ({ ...c, quantity: c.quantity > 0 ? c.quantity : 1 })));
+    };
+
+    const editTotals = useMemo(() => {
+        if (!order) return { subtotal: 0, taxAmount: 0, discountAmount: 0, totalAmount: 0 };
+        let sub = 0;
+        masterServices.forEach(s => {
+            const q = editQuantities[s._id] || 0;
+            sub += q * s.pricePerUnit;
+        });
+        const tax = sub * (order.taxPercent || 0) / 100;
+        const discount = sub * (order.discountPercent || 0) / 100;
+        const total = sub + tax - discount + (order.serviceCharge || 0);
+        return { subtotal: sub, taxAmount: tax, discountAmount: discount, totalAmount: total };
+    }, [order, masterServices, editQuantities]);
+
+    const saveEditChanges = async () => {
+        if (!order) return;
+        const finalItems: any[] = [];
+        masterServices.forEach(s => {
+            const q = editQuantities[s._id];
+            if (q > 0) {
+                finalItems.push({
+                    service: s._id,
+                    serviceName: s.serviceName || s.name,
+                    serviceType: s.serviceType,
+                    itemName: "",
+                    quantity: q,
+                    pricePerUnit: s.pricePerUnit,
+                    unit: s.unit,
+                    subtotal: q * s.pricePerUnit
+                });
+            }
+        });
+        customItems.forEach(c => {
+            if (c.itemName.trim() && c.quantity > 0) {
+                finalItems.push({
+                    service: null,
+                    serviceName: c.itemName,
+                    serviceType: 'manual',
+                    itemName: c.itemName,
+                    quantity: c.quantity,
+                    pricePerUnit: c.pricePerUnit || 0,
+                    unit: c.unit || 'piece',
+                    subtotal: c.quantity * (c.pricePerUnit || 0)
+                });
+            }
+        });
+
+        try {
+            setSavingEdits(true);
+            await api.put(`/orders/${order._id}`, { items: finalItems });
+            toast.success('Order items updated successfully!');
+            closeEditModal();
+            fetchOrder();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to update order items');
+        } finally {
+            setSavingEdits(false);
+        }
+    };
+
 
     // Ship order modal functions
     const openShipModal = () => {
@@ -409,8 +568,19 @@ const OrderDetail = () => {
                     <h1 className="text-2xl font-bold text-slate-900">{order.orderId}</h1>
                     <p className="text-sm text-slate-500">Created {new Date(order.createdAt).toLocaleString()}</p>
                 </div>
+                                {!order.isShipped && order.status !== 'cancelled' && (
+                    <button
+                        onClick={openEditModal}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:text-cyan-600 hover:border-cyan-200 hover:bg-cyan-50 transition-all cursor-pointer"
+                        title="Edit Order Items"
+                    >
+                        <HiOutlinePencil className="w-4 h-4" />
+                        <span className="text-sm font-medium">Edit Items</span>
+                    </button>
+                )}
                 <button 
-                    onClick={printThermalLabel} 
+                    onClick={printThermalLabel}
+ 
                     className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:text-cyan-600 hover:border-cyan-200 hover:bg-cyan-50 transition-all" 
                     title="Print Order Label"
                 >
@@ -901,137 +1071,455 @@ const OrderDetail = () => {
 
             {/* ── SHIP & INVOICE MODAL ── */}
             {showShipModal && order && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-4xl max-h-[90vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-left">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Ship Order & Generate Invoice: #{order.orderId}</h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Customer: <span className="font-semibold text-slate-700">{order.customer?.name}</span> ({order.customer?.customerId})
+                                <h3 className="text-xl font-bold text-slate-900">Ship Order & Generate Invoice: {order.orderId}</h3>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Customer: <span className="font-bold text-slate-700">{order.customer?.name}</span> <span className="text-slate-400">({order.customer?.customerId || 'CUST-0047'})</span>
                                 </p>
                             </div>
-                            <button onClick={closeShipModal} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                            <button onClick={closeShipModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
                                 <HiOutlineX className="w-5 h-5" />
                             </button>
                         </div>
-
-                        {/* Modal Body */}
-                        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                            <p className="text-xs text-slate-500">
+                        
+                        <div className="p-8 overflow-y-auto space-y-10 flex-1">
+                            <p className="text-sm text-slate-500">
                                 Enter the quantity of items being shipped. Any difference from the ordered quantity will be tracked.
                             </p>
 
-                            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase">
-                                            <th className="px-4 py-3 text-left">Item Name</th>
-                                            <th className="px-4 py-3 text-center">Unit</th>
-                                            <th className="px-4 py-3 text-right">Price</th>
-                                            <th className="px-4 py-3 text-center">Ordered Qty</th>
-                                            <th className="px-4 py-3 text-center">Shipped Qty</th>
-                                            <th className="px-4 py-3 text-right">Subtotal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {order.items?.filter((item: any) => item.serviceType === 'manual' || !item.service).map((item: any) => {
-                                            const qty = shippedQuantities[item._id] ?? item.quantity;
-                                            return (
-                                                <tr key={item._id} className="hover:bg-slate-50/50">
-                                                    <td className="px-4 py-3.5 font-medium text-slate-900">
-                                                        {item.itemName || item.serviceName}
-                                                        {item.serviceType === 'manual' && (
-                                                            <span className="ml-2 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded">Manual</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-center text-slate-600 capitalize">{item.unit}</td>
-                                                    <td className="px-4 py-3.5 text-right text-slate-600">
-                                                        {item.serviceType === 'manual' ? (
-                                                            <span className="text-slate-400 line-through">{currency}{item.pricePerUnit}</span>
-                                                        ) : (
-                                                            `${currency}${item.pricePerUnit}`
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-center font-semibold text-slate-700">{item.quantity}</td>
-                                                    <td className="px-4 py-3.5 text-center">
-                                                        <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-1">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                max={item.quantity}
-                                                                value={qty}
-                                                                onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)}
-                                                                className="w-16 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-center text-sm font-bold focus:outline-none focus:border-cyan-500"
-                                                            />
+                            {/* Service Items Table */}
+                            {order.items?.filter((item: any) => item.serviceType !== 'manual' && item.service).length > 0 && (
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold text-[#1c2a5e] uppercase tracking-widest">Services & Billing Items</h4>
+                                    <div className="w-full">
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="text-[#1c2a5e] text-[11px] font-bold uppercase border-b border-slate-200">
+                                                    <th className="py-3 text-left w-1/3">Item</th>
+                                                    <th className="py-3 text-center">
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <span>Fill Items</span>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => {
+                                                                    setShippedQuantities(prev => {
+                                                                        const next = { ...prev };
+                                                                        order.items?.filter((i: any) => i.serviceType !== 'manual' && i.service).forEach((i: any) => next[i._id] = i.quantity);
+                                                                        return next;
+                                                                    });
+                                                                }} 
+                                                                className="text-[9px] text-cyan-600 hover:text-cyan-800 hover:underline transition-all"
+                                                            >
+                                                                [Fill All]
+                                                            </button>
                                                         </div>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
-                                                        {item.serviceType === 'manual' ? (
-                                                            <span className="text-slate-400">Not Billed</span>
-                                                        ) : (
-                                                            `${currency}${(qty * item.pricePerUnit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                                        )}
-                                                    </td>
+                                                    </th>
+                                                    <th className="py-3 text-center">Qty Ordered</th>
+                                                    <th className="py-3 text-center">Filled Qty</th>
+                                                    <th className="py-3 text-center">Back Order</th>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Billing details */}
-                            <div className="flex flex-col lg:flex-row gap-6">
-                                <div className="flex-1 bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                                    <h4 className="font-bold text-slate-800 mb-2 uppercase tracking-wide">What happens next?</h4>
-                                    <p className="mb-2">Confirming shipment will finalize the quantities and generate an invoice <strong>pending approval</strong>.</p>
-                                    <p className="font-semibold text-cyan-700">ℹ️ The invoice will appear in the Invoices page under the "Pending Approval" tab for review.</p>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {order.items?.filter((item: any) => item.serviceType !== 'manual' && item.service).map((item: any) => {
+                                                    const qty = shippedQuantities[item._id] ?? item.quantity;
+                                                    const backOrder = Math.max(0, item.quantity - qty);
+                                                    
+                                                    return (
+                                                        <tr key={item._id}>
+                                                            <td className="py-4 font-medium text-slate-800 text-sm">
+                                                                {item.itemName || item.serviceName}
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleShipQtyChange(item._id, item.quantity, item.quantity)}
+                                                                    className="px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                >
+                                                                    {item.quantity}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                    {item.quantity}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    max={item.quantity}
+                                                                    value={qty || ''} 
+                                                                    onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)} 
+                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                />
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-bold text-slate-300 border border-slate-200 rounded-full">
+                                                                    {backOrder}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <div className="w-full lg:w-80 bg-[#1c2a5e]/5 rounded-2xl p-5 border border-[#1c2a5e]/10 space-y-3">
-                                    <div className="flex justify-between text-xs text-slate-605">
+                            )}
+
+                            {/* Custom Items */}
+                            {order.items?.filter((item: any) => item.serviceType === 'manual' || !item.service).length > 0 && (
+                                <div className="space-y-4 pt-4 border-t border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <h4 className="text-xs font-bold text-[#1c2a5e] uppercase tracking-widest">Linen / Custom Items Tracking</h4>
+                                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase bg-slate-100 text-slate-500">Not Billed</span>
+                                    </div>
+                                    
+                                    <div className="w-full">
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="text-[#1c2a5e] text-[11px] font-bold uppercase border-b border-slate-200">
+                                                    <th className="py-3 text-left w-1/3">Linen / Bag Item</th>
+                                                    <th className="py-3 text-center">
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <span>Fill Items</span>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => {
+                                                                    setShippedQuantities(prev => {
+                                                                        const next = { ...prev };
+                                                                        order.items?.filter((i: any) => i.serviceType === 'manual' || !i.service).forEach((i: any) => next[i._id] = i.quantity);
+                                                                        return next;
+                                                                    });
+                                                                }} 
+                                                                className="text-[9px] text-cyan-600 hover:text-cyan-800 hover:underline transition-all"
+                                                            >
+                                                                [Fill All]
+                                                            </button>
+                                                        </div>
+                                                    </th>
+                                                    <th className="py-3 text-center">Qty Ordered</th>
+                                                    <th className="py-3 text-center">Filled Qty</th>
+                                                    <th className="py-3 text-center">Back Order</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {order.items?.filter((item: any) => item.serviceType === 'manual' || !item.service).map((item: any) => {
+                                                    const qty = shippedQuantities[item._id] ?? item.quantity;
+                                                    const backOrder = Math.max(0, item.quantity - qty);
+                                                    
+                                                    return (
+                                                        <tr key={item._id}>
+                                                            <td className="py-4 font-medium text-slate-800 text-sm">
+                                                                {item.itemName || item.serviceName}
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleShipQtyChange(item._id, item.quantity, item.quantity)}
+                                                                    className="px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                >
+                                                                    {item.quantity}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                    {item.quantity}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    max={item.quantity}
+                                                                    value={qty || ''} 
+                                                                    onChange={(e) => handleShipQtyChange(item._id, parseInt(e.target.value) || 0, item.quantity)} 
+                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${qty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                />
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-bold text-slate-300 border border-slate-200 rounded-full">
+                                                                    {backOrder}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Totals Section */}
+                            <div className="flex justify-end pt-6">
+                                <div className="w-full lg:w-[320px] bg-slate-50/80 rounded-2xl p-6 border border-slate-100 space-y-4">
+                                    <div className="flex justify-between text-sm text-slate-500">
                                         <span>Subtotal:</span>
-                                        <span className="font-semibold text-slate-900">{currency}{shipTotals.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(shipTotals.subtotal || 0).toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between text-xs text-slate-600">
+                                    <div className="flex justify-between text-sm text-slate-500">
                                         <span>Tax ({order.taxPercent || 0}%):</span>
-                                        <span className="font-semibold text-slate-900">{currency}{shipTotals.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(shipTotals.taxAmount || 0).toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between text-xs text-slate-655 text-red-650">
+                                    <div className="flex justify-between text-sm text-slate-500">
                                         <span>Discount ({order.discountPercent || 0}%):</span>
-                                        <span className="font-semibold">-{currency}{shipTotals.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="font-bold text-slate-800">-{currency}{Number(shipTotals.discountAmount || 0).toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between text-xs text-slate-600">
+                                    <div className="flex justify-between text-sm text-slate-500">
                                         <span>Service Charge:</span>
-                                        <span className="font-semibold text-slate-900">{currency}{(order.serviceCharge || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(order.serviceCharge || 0).toFixed(2)}</span>
                                     </div>
-                                    <div className="border-t border-slate-200 my-2 pt-2 flex justify-between text-sm font-bold text-slate-900">
-                                        <span>Invoice Total:</span>
-                                        <span className="text-cyan-700">{currency}{shipTotals.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
+                                        <span className="font-bold text-slate-900">Invoice Total:</span>
+                                        <span className="text-lg font-bold text-cyan-600">{currency}{Number(shipTotals.totalAmount || 0).toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
-                            <button onClick={closeShipModal} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">
+                        {/* Footer */}
+                        <div className="px-6 py-5 border-t border-slate-100 flex items-center justify-end gap-4">
+                            <button onClick={closeShipModal} className="px-4 py-2 text-slate-500 font-semibold text-sm hover:text-slate-800 transition-colors">
                                 Cancel
                             </button>
-                            <button
-                                onClick={handleConfirmShipment}
-                                disabled={shipping}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-[#1c2a5e] text-white text-sm font-bold rounded-xl hover:bg-opacity-90 transition-all shadow-lg disabled:bg-slate-400 disabled:cursor-not-allowed"
-                            >
-                                {shipping ? (
-                                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Shipping...</>
-                                ) : (
-                                    <><HiOutlineTruck className="w-5 h-5" /> Confirm & Ship</>
-                                )}
+                            <button onClick={handleConfirmShipment} disabled={shipping} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-[#1c2a5e] text-white text-sm font-bold rounded-xl hover:bg-[#152046] transition-all shadow-md disabled:bg-slate-400 disabled:cursor-not-allowed min-w-[140px]">
+                                {shipping ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><HiOutlineTruck className="w-5 h-5" /> Confirm & Ship</>}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+            {/* Edit Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-900">Edit Order Items: {order.orderId}</h3>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Customer: <span className="font-bold text-slate-700">{order.customer?.name}</span> <span className="text-slate-400">({order.customer?.customerId || 'CUST-0047'})</span>
+                                </p>
+                            </div>
+                            <button onClick={closeEditModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                                <HiOutlineX className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-8 overflow-y-auto space-y-10 flex-1">
+                            <p className="text-sm text-slate-500">
+                                Adjust the quantities of the services below. Enter a quantity greater than 0 to add a service to the order, or set it to 0 to remove it.
+                            </p>
+
+                            {/* Service Items Table */}
+                            {masterServices.length > 0 && (
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold text-[#1c2a5e] uppercase tracking-widest">Services & Billing Items</h4>
+                                    <div className="w-full">
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="text-[#1c2a5e] text-[11px] font-bold uppercase border-b border-slate-200">
+                                                    <th className="py-3 text-left w-1/3">Item</th>
+                                                    <th className="py-3 text-center">
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <span>Fill Items</span>
+                                                            <button type="button" onClick={fillAllEditServices} className="text-[9px] text-cyan-600 hover:text-cyan-800 hover:underline transition-all">[Fill All]</button>
+                                                        </div>
+                                                    </th>
+                                                    <th className="py-3 text-center">Qty Ordered</th>
+                                                    <th className="py-3 text-center">Edit Qty</th>
+                                                    <th className="py-3 text-center">Unit</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {masterServices.map((item: any) => {
+                                                    const editQty = editQuantities[item._id] || 0;
+                                                    const orderedQty = order.items?.find((i: any) => i.service === item._id)?.quantity || 0;
+                                                    
+                                                    return (
+                                                        <tr key={item._id}>
+                                                            <td className="py-4">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-semibold text-slate-800 text-base">{item.name || item.serviceName}</span>
+                                                                    <span className="text-xs text-slate-400 mt-1">Price: {currency}{Number(item.pricePerUnit).toFixed(2)} / {item.unit}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleEditQty(item._id, orderedQty.toString())}
+                                                                    className="px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                >
+                                                                    {editQty === orderedQty && orderedQty > 0 ? `Selected (${orderedQty})` : orderedQty}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                    {orderedQty}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    value={editQty || ''} 
+                                                                    onChange={(e) => handleEditQty(item._id, e.target.value)} 
+                                                                    className={`w-16 mx-auto text-center py-1.5 font-bold rounded-full focus:outline-none transition-all ${editQty > 0 ? 'border-2 border-cyan-200 text-slate-800' : 'border border-slate-200 text-slate-400'}`} 
+                                                                />
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <span className="px-4 py-1.5 rounded-full border-2 border-cyan-100 text-cyan-600 font-bold text-sm bg-white">
+                                                                    {item.unit}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Custom Items */}
+                            <div className="space-y-4 pt-4 border-t border-slate-100">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <h4 className="text-xs font-bold text-[#1c2a5e] uppercase tracking-widest">Linen / Custom Items Tracking</h4>
+                                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase bg-slate-100 text-slate-500">Not Billed</span>
+                                    </div>
+                                    <button type="button" onClick={addCustomItem} className="text-sm font-bold text-cyan-600 hover:text-cyan-700 transition-colors">
+                                        + Add Custom Item
+                                    </button>
+                                </div>
+                                
+                                {customItems.length > 0 && (
+                                    <div className="w-full">
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="text-[#1c2a5e] text-[11px] font-bold uppercase border-b border-slate-200">
+                                                    <th className="py-3 text-left w-1/3">Linen / Bag Item</th>
+                                                    <th className="py-3 text-center">
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <span>Fill Items</span>
+                                                            <button type="button" onClick={fillAllEditCustom} className="text-[9px] text-cyan-600 hover:text-cyan-800 hover:underline transition-all">[Fill All]</button>
+                                                        </div>
+                                                    </th>
+                                                    <th className="py-3 text-center">Qty Ordered</th>
+                                                    <th className="py-3 text-center">Edit Qty</th>
+                                                    <th className="py-3 text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {customItems.map((c, idx) => {
+                                                    const orderedQty = order.items?.find((i: any) => i._id === c._id)?.quantity || 0;
+                                                    return (
+                                                        <tr key={c._id || idx}>
+                                                            <td className="py-4">
+                                                                <div className="flex flex-col gap-2">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="e.g. towel" 
+                                                                        value={c.itemName} 
+                                                                        onChange={(e) => handleCustomChange(idx, 'itemName', e.target.value)} 
+                                                                        className="w-full max-w-[200px] px-4 py-2 border border-slate-200 rounded-full text-sm font-medium text-slate-800 focus:outline-none focus:border-cyan-400" 
+                                                                    />
+                                                                    <div className="flex items-center gap-2 pl-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Unit:</span>
+                                                                        <select 
+                                                                            value={c.unit || 'piece'} 
+                                                                            onChange={(e) => handleCustomChange(idx, 'unit', e.target.value)}
+                                                                            className="text-xs text-slate-600 bg-transparent focus:outline-none font-medium cursor-pointer"
+                                                                        >
+                                                                            <option value="piece">piece</option>
+                                                                            <option value="kg">kg</option>
+                                                                            <option value="bag">bag</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleCustomChange(idx, 'quantity', orderedQty)}
+                                                                    className="px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                >
+                                                                    {c.quantity === orderedQty && orderedQty > 0 ? `Selected (${orderedQty})` : orderedQty}
+                                                                </button>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <div className="w-16 mx-auto py-1.5 text-center text-sm font-semibold text-slate-300 border border-slate-100 rounded-full bg-slate-50/50">
+                                                                    {orderedQty}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    value={c.quantity || ''} 
+                                                                    onChange={(e) => handleCustomChange(idx, 'quantity', Math.max(0, parseInt(e.target.value) || 0))} 
+                                                                    className="w-16 mx-auto text-center py-1.5 font-bold rounded-full border border-slate-200 focus:outline-none focus:border-cyan-400 text-slate-800" 
+                                                                />
+                                                            </td>
+                                                            <td className="py-4 text-center">
+                                                                <button type="button" onClick={() => removeCustomItem(idx)} className="p-2 text-red-500 hover:text-red-700 transition-colors">
+                                                                    <HiOutlineTrash className="w-5 h-5" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Totals Section */}
+                            <div className="flex justify-end pt-6">
+                                <div className="w-full lg:w-[320px] bg-slate-50/80 rounded-2xl p-6 border border-slate-100 space-y-4">
+                                    <div className="flex justify-between text-sm text-slate-500">
+                                        <span>Subtotal:</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(editTotals.subtotal || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-slate-500">
+                                        <span>Tax ({order.taxPercent || 0}%):</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(editTotals.taxAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-slate-500">
+                                        <span>Discount ({order.discountPercent || 0}%):</span>
+                                        <span className="font-bold text-slate-800">-{currency}{Number(editTotals.discountAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-slate-500">
+                                        <span>Service Charge:</span>
+                                        <span className="font-bold text-slate-800">{currency}{Number(order.serviceCharge || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
+                                        <span className="font-bold text-slate-900">Estimated Total:</span>
+                                        <span className="text-lg font-bold text-cyan-600">{currency}{Number(editTotals.totalAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-5 border-t border-slate-100 flex items-center justify-end gap-4">
+                            <button onClick={closeEditModal} className="px-4 py-2 text-slate-500 font-semibold text-sm hover:text-slate-800 transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={saveEditChanges} disabled={savingEdits} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-[#1c2a5e] text-white text-sm font-bold rounded-xl hover:bg-[#152046] transition-all shadow-md disabled:bg-slate-400 disabled:cursor-not-allowed min-w-[140px]">
+                                {savingEdits ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

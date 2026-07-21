@@ -9,22 +9,36 @@ const sendEmail = require('../utils/emailService');
 // @access  Private
 exports.getInvoices = async (req, res, next) => {
     try {
-        const { paymentStatus, isApproved, page = 1, limit = 20 } = req.query;
+        const { paymentStatus, isApproved, tab, page = 1, limit = 20 } = req.query;
         const filter = {};
         if (paymentStatus) filter.paymentStatus = paymentStatus;
-        if (isApproved !== undefined) {
+        
+        if (tab === 'cycle') {
+            filter.isGenerated = true;
+            filter.isCycleInvoice = true;
+            // Only show cycle invoices when their time has come (midnight of 7th/15th/30th day)
+            filter.cycleReadyDate = { $lte: new Date() }; 
+        } else if (isApproved !== undefined) {
             filter.isApproved = isApproved === 'true';
             if (isApproved === 'false') {
                 filter.isGenerated = true;
+                // Cycle invoices NEVER appear in Pending Approval, they stay in Cycle Invoices
+                filter.isCycleInvoice = { $ne: true };
             }
         } else {
             filter.isApproved = true;
+            // Standard tab only shows non-cycle invoices
+            filter.$or = [
+                { isCycleInvoice: { $exists: false } },
+                { isCycleInvoice: false }
+            ];
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const total = await Invoice.countDocuments(filter);
         const invoices = await Invoice.find(filter)
             .populate('order', 'orderId status')
+            .populate('linkedOrders', 'orderId status')
             .populate('customer', 'customerId name phone customerType')
             .sort('-createdAt')
             .skip(skip)
@@ -50,6 +64,13 @@ exports.getInvoice = async (req, res, next) => {
         const invoice = await Invoice.findById(req.params.id)
             .populate({
                 path: 'order',
+                populate: [
+                    { path: 'customer' },
+                    { path: 'items' },
+                ],
+            })
+            .populate({
+                path: 'linkedOrders',
                 populate: [
                     { path: 'customer' },
                     { path: 'items' },
@@ -111,16 +132,11 @@ exports.updateInvoice = async (req, res, next) => {
             });
         }
 
-        const order = await Order.findById(invoice.order);
-        if (!order) {
-            return res.status(404).json({ success: false, message: 'Associated order not found' });
-        }
-
         const {
             items,
-            discountPercent = order.discountPercent || 0,
-            taxPercent = order.taxPercent || 0,
-            serviceCharge = order.serviceCharge || 0,
+            discountPercent = 0,
+            taxPercent = 0,
+            serviceCharge = 0,
         } = req.body;
 
         if (!Array.isArray(items) || items.length === 0) {
@@ -173,16 +189,53 @@ exports.updateInvoice = async (req, res, next) => {
             paymentStatus = 'partial';
         }
 
-        // Update Order
-        order.items = processedItems;
-        order.subtotal = subtotal;
-        order.taxPercent = Number(taxPercent);
-        order.taxAmount = taxAmount;
-        order.discountPercent = Number(discountPercent);
-        order.discountAmount = discountAmount;
-        order.serviceCharge = Number(serviceCharge);
-        order.totalAmount = totalAmount;
-        await order.save();
+        // Update Order(s)
+        if (invoice.isCycleInvoice && invoice.linkedOrders && invoice.linkedOrders.length > 0) {
+            // Group items by originalOrderId
+            const itemsByOrder = {};
+            processedItems.forEach(item => {
+                if (item.originalOrderId) {
+                    if (!itemsByOrder[item.originalOrderId]) {
+                        itemsByOrder[item.originalOrderId] = [];
+                    }
+                    itemsByOrder[item.originalOrderId].push(item);
+                }
+            });
+
+            for (const [orderIdStr, orderItems] of Object.entries(itemsByOrder)) {
+                const orderToUpdate = await Order.findById(orderIdStr);
+                if (orderToUpdate) {
+                    const orderBillable = orderItems.filter(i => i.serviceType !== 'manual');
+                    const orderSubtotal = orderBillable.reduce((s, i) => s + i.subtotal, 0);
+                    const orderTax = (orderSubtotal * Number(taxPercent)) / 100;
+                    const orderDiscount = (orderSubtotal * Number(discountPercent)) / 100;
+                    // Distribute service charge proportionally or just set to 0. We'll set to 0 and put serviceCharge on the invoice.
+                    const orderTotal = orderSubtotal + orderTax - orderDiscount;
+                    
+                    orderToUpdate.items = orderItems;
+                    orderToUpdate.subtotal = orderSubtotal;
+                    orderToUpdate.taxPercent = Number(taxPercent);
+                    orderToUpdate.taxAmount = orderTax;
+                    orderToUpdate.discountPercent = Number(discountPercent);
+                    orderToUpdate.discountAmount = orderDiscount;
+                    orderToUpdate.totalAmount = orderTotal;
+                    await orderToUpdate.save();
+                }
+            }
+        } else if (invoice.order) {
+            const orderToUpdate = await Order.findById(invoice.order);
+            if (orderToUpdate) {
+                orderToUpdate.items = processedItems;
+                orderToUpdate.subtotal = subtotal;
+                orderToUpdate.taxPercent = Number(taxPercent);
+                orderToUpdate.taxAmount = taxAmount;
+                orderToUpdate.discountPercent = Number(discountPercent);
+                orderToUpdate.discountAmount = discountAmount;
+                orderToUpdate.serviceCharge = Number(serviceCharge);
+                orderToUpdate.totalAmount = totalAmount;
+                await orderToUpdate.save();
+            }
+        }
 
         // Update Invoice
         invoice.subtotal = subtotal;
@@ -198,6 +251,13 @@ exports.updateInvoice = async (req, res, next) => {
         const updatedInvoice = await Invoice.findById(invoice._id)
             .populate({
                 path: 'order',
+                populate: [
+                    { path: 'customer' },
+                    { path: 'items' },
+                ],
+            })
+            .populate({
+                path: 'linkedOrders',
                 populate: [
                     { path: 'customer' },
                     { path: 'items' },
@@ -348,7 +408,20 @@ exports.approveInvoice = async (req, res, next) => {
 exports.getPublicInvoice = async (req, res, next) => {
     try {
         const invoice = await Invoice.findById(req.params.id)
-            .populate('order')
+            .populate({
+                path: 'order',
+                populate: [
+                    { path: 'customer' },
+                    { path: 'items' },
+                ],
+            })
+            .populate({
+                path: 'linkedOrders',
+                populate: [
+                    { path: 'customer' },
+                    { path: 'items' },
+                ],
+            })
             .populate('customer');
 
         if (!invoice) {

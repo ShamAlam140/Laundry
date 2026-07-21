@@ -9,6 +9,7 @@ const Notification = require('../models/Notification');
 const ServiceTimerService = require('../utils/serviceTimerService');
 const RefundRecommenderService = require('../utils/refundRecommenderService');
 const sendEmail = require('../utils/emailService');
+const moment = require('moment-timezone');
 
 // @desc    Create order
 // @route   POST /api/orders
@@ -108,24 +109,25 @@ exports.createOrder = async (req, res, next) => {
                 });
             }
 
-            item.subtotal = item.quantity * item.pricePerUnit;
+            item.subtotal = Math.round((item.quantity * item.pricePerUnit) * 100) / 100;
         }
 
         // Calculate totals - exclude manual items from billing
         const billableItems = items.filter(item => item.serviceType !== 'manual');
-        const subtotal = billableItems.reduce((sum, item) => sum + item.subtotal, 0);
-        const taxAmount = (subtotal * taxPercent) / 100;
-        const discountAmount = (subtotal * discountPercent) / 100;
-        let totalAmount = subtotal + taxAmount - discountAmount + serviceCharge;
+        const subtotal = Math.round((billableItems.reduce((sum, item) => sum + item.subtotal, 0)) * 100) / 100;
+        const taxAmount = Math.round(((subtotal * taxPercent) / 100) * 100) / 100;
+        const discountAmount = Math.round(((subtotal * discountPercent) / 100) * 100) / 100;
+        let totalAmount = Math.round((subtotal + taxAmount - discountAmount + serviceCharge) * 100) / 100;
 
         // Apply credit balance if requested
         let creditApplied = 0;
         if (applyCreditBalance && customer.creditBalance > 0) {
             creditApplied = Math.min(customer.creditBalance, totalAmount);
-            totalAmount -= creditApplied;
-            
+            creditApplied = Math.round(creditApplied * 100) / 100;
+            totalAmount = Math.round((totalAmount - creditApplied) * 100) / 100;
+
             // Deduct credit from customer
-            customer.creditBalance -= creditApplied;
+            customer.creditBalance = Math.round((customer.creditBalance - creditApplied) * 100) / 100;
             await customer.save();
         }
 
@@ -140,7 +142,7 @@ exports.createOrder = async (req, res, next) => {
             discountPercent,
             discountAmount,
             serviceCharge,
-            totalAmount: subtotal + taxAmount - discountAmount + serviceCharge, // Original total
+            totalAmount: Math.round((subtotal + taxAmount - discountAmount + serviceCharge) * 100) / 100, // Original total
             createdBy: req.user._id,
         });
 
@@ -378,6 +380,77 @@ exports.getOrder = async (req, res, next) => {
     }
 };
 
+// @desc    Update order items/details (Edit Order)
+// @route   PUT /api/orders/:id
+// @access  Private (Admin, Manager, Cashier)
+exports.updateOrder = async (req, res, next) => {
+    try {
+        const { items, taxPercent, discountPercent, serviceCharge, specialInstructions, deliveryDate } = req.body;
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.isShipped) {
+            return res.status(400).json({ success: false, message: 'Shipped orders cannot be edited' });
+        }
+        if (order.status === 'cancelled') {
+            return res.status(400).json({ success: false, message: 'Cancelled orders cannot be edited' });
+        }
+
+        if (items && Array.isArray(items)) {
+            // Validate and format items
+            const formattedItems = [];
+            for (const item of items) {
+                const qty = Number(item.quantity) || 0;
+                const price = Number(item.pricePerUnit) || 0;
+                formattedItems.push({
+                    service: item.service || null,
+                    serviceName: item.serviceName,
+                    serviceType: item.serviceType || 'standard',
+                    itemName: item.itemName || '',
+                    quantity: qty,
+                    shippedQuantity: item.shippedQuantity !== undefined ? Number(item.shippedQuantity) : null,
+                    unit: item.unit || 'piece',
+                    pricePerUnit: price,
+                    subtotal: Math.round(qty * price * 100) / 100,
+                });
+            }
+            order.items = formattedItems;
+        }
+
+        if (taxPercent !== undefined) order.taxPercent = Number(taxPercent) || 0;
+        if (discountPercent !== undefined) order.discountPercent = Number(discountPercent) || 0;
+        if (serviceCharge !== undefined) order.serviceCharge = Number(serviceCharge) || 0;
+        if (specialInstructions !== undefined) order.specialInstructions = specialInstructions;
+        if (deliveryDate !== undefined) order.deliveryDate = deliveryDate;
+
+        // Recalculate totals
+        const billableItems = order.items.filter(item => item.serviceType !== 'manual');
+        const subtotal = Math.round((billableItems.reduce((sum, item) => sum + item.subtotal, 0)) * 100) / 100;
+        const taxAmount = Math.round(((subtotal * order.taxPercent) / 100) * 100) / 100;
+        const discountAmount = Math.round(((subtotal * order.discountPercent) / 100) * 100) / 100;
+        const totalAmount = Math.round((subtotal + taxAmount - discountAmount + order.serviceCharge) * 100) / 100;
+
+        order.subtotal = subtotal;
+        order.taxAmount = taxAmount;
+        order.discountAmount = discountAmount;
+        order.totalAmount = totalAmount;
+
+        await order.save();
+
+        const populatedOrder = await Order.findById(order._id)
+            .populate('customer', 'customerId name phone customerType creditBalance')
+            .populate('createdBy', 'name');
+
+        res.status(200).json({
+            success: true,
+            data: populatedOrder
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // @desc    Update order status
 // @route   PATCH /api/orders/:id/status
 // @access  Private
@@ -430,7 +503,7 @@ exports.updateOrderStatus = async (req, res, next) => {
             if (settings) {
                 const serviceType = order.items[0]?.serviceType;
                 const expectedDuration = settings.serviceDurationThresholds?.get(serviceType);
-                
+
                 if (expectedDuration) {
                     order.isDelayed = RefundRecommenderService.shouldFlagAsDelayed(
                         order.serviceDuration,
@@ -487,80 +560,6 @@ exports.updateOrderStatus = async (req, res, next) => {
         }
 
         res.status(200).json({ success: true, data: populatedOrder });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// @desc    Update order
-// @route   PUT /api/orders/:id
-// @access  Private
-exports.updateOrder = async (req, res, next) => {
-    try {
-        const order = await Order.findById(req.params.id);
-        if (!order) {
-            return res.status(404).json({ success: false, message: 'Order not found' });
-        }
-
-        // Check if invoice is finalized
-        const invoice = await Invoice.findOne({ order: order._id });
-        if (invoice && invoice.isFinalized && req.user.role !== 'admin') {
-            return res.status(400).json({
-                success: false,
-                message: 'Cannot edit order after invoice is finalized. Admin override required.',
-            });
-        }
-
-        if (req.body.items) {
-            order.items = req.body.items;
-        }
-        if (req.body.deliveryDate !== undefined) {
-            order.deliveryDate = req.body.deliveryDate || undefined;
-        }
-        if (req.body.specialInstructions !== undefined) {
-            order.specialInstructions = req.body.specialInstructions;
-        }
-        if (req.body.taxPercent !== undefined) {
-            order.taxPercent = Number(req.body.taxPercent);
-        }
-        if (req.body.discountPercent !== undefined) {
-            order.discountPercent = Number(req.body.discountPercent);
-        }
-        if (req.body.serviceCharge !== undefined) {
-            order.serviceCharge = Number(req.body.serviceCharge);
-        }
-
-        // Recalculate totals
-        for (const item of order.items) {
-            item.quantity = Number(item.quantity || 1);
-            item.pricePerUnit = Number(item.pricePerUnit || 0);
-            item.subtotal = item.quantity * item.pricePerUnit;
-        }
-        const billableItems = order.items.filter(item => item.serviceType !== 'manual');
-        order.subtotal = billableItems.reduce((sum, item) => sum + item.subtotal, 0);
-        order.taxAmount = (order.subtotal * order.taxPercent) / 100;
-        order.discountAmount = (order.subtotal * order.discountPercent) / 100;
-        order.totalAmount = order.subtotal + order.taxAmount - order.discountAmount + order.serviceCharge;
-
-        await order.save();
-
-        // Sync with invoice
-        if (invoice) {
-            invoice.subtotal = order.subtotal;
-            invoice.taxAmount = order.taxAmount;
-            invoice.discountAmount = order.discountAmount;
-            invoice.serviceCharge = order.serviceCharge;
-            invoice.totalAmount = order.totalAmount;
-            invoice.balanceDue = Math.max(0, order.totalAmount - (invoice.paidAmount || 0));
-            invoice.paymentStatus = (invoice.paidAmount || 0) >= order.totalAmount ? 'paid' : ((invoice.paidAmount || 0) > 0 ? 'partial' : 'unpaid');
-            await invoice.save();
-        }
-
-        const populated = await Order.findById(order._id)
-            .populate('customer', 'customerId name phone')
-            .populate('createdBy', 'name');
-
-        res.status(200).json({ success: true, data: populated });
     } catch (error) {
         next(error);
     }
@@ -650,7 +649,7 @@ exports.bulkImportOrders = async (req, res, next) => {
 
         // Configure multer for file upload
         const upload = multer({ dest: 'uploads/' });
-        
+
         // Handle file upload
         upload.single('file')(req, res, async (err) => {
             if (err) {
@@ -850,12 +849,38 @@ exports.shipOrder = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Order is already shipped/invoiced' });
         }
 
-        // Update items shipped quantity
+        // Update items shipped quantity / Add new items
         if (items && Array.isArray(items)) {
+            const updatedItemIds = new Set();
             for (const shipItem of items) {
-                const orderItem = order.items.id(shipItem.itemId);
-                if (orderItem) {
-                    orderItem.shippedQuantity = Number(shipItem.shippedQuantity);
+                if (shipItem.itemId) {
+                    const orderItem = order.items.id(shipItem.itemId);
+                    if (orderItem) {
+                        orderItem.shippedQuantity = Number(shipItem.shippedQuantity);
+                        orderItem.subtotal = orderItem.shippedQuantity * orderItem.pricePerUnit;
+                        updatedItemIds.add(shipItem.itemId.toString());
+                    }
+                } else {
+                    // New item added during shipping
+                    const newQty = Number(shipItem.shippedQuantity) || 0;
+                    order.items.push({
+                        service: shipItem.service || null,
+                        serviceName: shipItem.serviceName,
+                        serviceType: shipItem.serviceType || 'standard',
+                        itemName: shipItem.itemName || '',
+                        quantity: newQty, // Set ordered quantity to same as shipped to keep backorder at 0
+                        shippedQuantity: newQty,
+                        unit: shipItem.unit || 'piece',
+                        pricePerUnit: Number(shipItem.pricePerUnit) || 0,
+                        subtotal: newQty * (Number(shipItem.pricePerUnit) || 0),
+                    });
+                }
+            }
+
+            // Set shippedQuantity to quantity for any items that were NOT passed in the payload
+            for (const orderItem of order.items) {
+                if (!updatedItemIds.has(orderItem._id.toString()) && (orderItem.shippedQuantity === null || orderItem.shippedQuantity === undefined)) {
+                    orderItem.shippedQuantity = orderItem.quantity;
                     orderItem.subtotal = orderItem.shippedQuantity * orderItem.pricePerUnit;
                 }
             }
@@ -894,16 +919,70 @@ exports.shipOrder = async (req, res, next) => {
 
         const customer = await Customer.findById(order.customer);
         const creditDays = customer && customer.creditDays ? customer.creditDays : 0;
-        
+
         const dueDate = new Date();
         if (creditDays > 0) {
             dueDate.setDate(dueDate.getDate() + creditDays);
         }
+
+        let cycleReadyDate = new Date();
+        const timezone = 'Australia/Sydney';
+        const m = moment().tz(timezone);
+
+        if (creditDays === 7) {
+            let dayOfWeek = m.isoWeekday();
+            if (dayOfWeek !== 7) {
+                m.isoWeekday(7);
+            }
+            cycleReadyDate = m.endOf('day').toDate();
+        } else if (creditDays === 15) {
+            if (m.date() <= 15) {
+                m.date(15);
+            } else {
+                m.endOf('month');
+            }
+            cycleReadyDate = m.endOf('day').toDate();
+        } else if (creditDays === 30) {
+            cycleReadyDate = m.endOf('month').endOf('day').toDate();
+        } else if (creditDays > 1) {
+            cycleReadyDate = m.add(creditDays, 'days').endOf('day').toDate();
+        }
+
         const terms = creditDays > 0 ? `NET ${creditDays}` : 'Due on Receipt';
 
-        // Create Invoice (pending approval, to be approved manually in Invoices list/details)
-        const invoice = await Invoice.create({
-            order: order._id,
+        const isCycleInvoice = creditDays > 1;
+
+        if (isCycleInvoice) {
+            // Check if there is already an open cycle invoice for this customer
+            let existingInvoice = await Invoice.findOne({
+                customer: order.customer,
+                isCycleInvoice: true,
+                isApproved: false,
+                paymentStatus: 'unpaid',
+            });
+
+            if (existingInvoice) {
+                // Merge this order into the existing cycle invoice
+                existingInvoice.linkedOrders.push(order._id);
+                existingInvoice.subtotal += order.subtotal;
+                existingInvoice.taxAmount += order.taxAmount;
+                existingInvoice.discountAmount += order.discountAmount;
+                existingInvoice.serviceCharge += order.serviceCharge;
+                existingInvoice.totalAmount += order.totalAmount;
+                existingInvoice.balanceDue += order.totalAmount;
+
+                await existingInvoice.save();
+
+                return res.json({
+                    success: true,
+                    data: order,
+                    message: 'Order shipped and added to current cycle invoice',
+                });
+            }
+        }
+
+        // If no existing cycle invoice (or it's a standard/daily customer), create a new one
+        const invoiceData = {
             customer: order.customer,
             subtotal: order.subtotal,
             taxAmount: order.taxAmount,
@@ -913,12 +992,22 @@ exports.shipOrder = async (req, res, next) => {
             paidAmount: 0,
             balanceDue: order.totalAmount,
             paymentStatus: 'unpaid',
-            isApproved: false, // Pending approval
+            isApproved: false, // All invoices start as unapproved so they can accumulate or be approved manually
             isGenerated: true,
+            isCycleInvoice,
             dueDate,
             terms,
+            cycleReadyDate,
             createdBy: req.user._id,
-        });
+        };
+
+        if (isCycleInvoice) {
+            invoiceData.linkedOrders = [order._id];
+        } else {
+            invoiceData.order = order._id;
+        }
+
+        const invoice = await Invoice.create(invoiceData);
 
         // Notify admins/managers
         createNotification({

@@ -26,7 +26,19 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
         .toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
         .toUpperCase();
 
-    const allItems = items || [];
+    let allItems: any[] = [];
+    if (inv.isCycleInvoice && inv.linkedOrders?.length > 0) {
+        inv.linkedOrders.forEach((ord: any) => {
+            if (ord.items) {
+                const mappedItems = ord.items.map((item: any) => ({ ...item, orderId: ord.orderId, deliveryDate: ord.deliveryDate }));
+                allItems.push(...mappedItems);
+            }
+        });
+    } else if (inv.order?.items) {
+        const mappedItems = inv.order.items.map((item: any) => ({ ...item, orderId: inv.order.orderId, deliveryDate: inv.order.deliveryDate }));
+        allItems.push(...mappedItems);
+    }
+
     const services = allItems.filter(
         (item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service,
     );
@@ -208,26 +220,36 @@ export const generateInvoiceHTML = (inv: any, currency: string = '$'): string =>
     <tbody>
       ${services.length > 0 ? `
         <tr class="section-hdr"><td colspan="5">🔧 Services - Billable</td></tr>
-        ${services.map((item: any, idx: number) => `
+        ${services.map((item: any) => {
+          const itemDelDate = item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : formattedDate;
+          return `
           <tr>
-            <td>${idx === 0 ? formattedDate : '—'}</td>
-            <td>${item.serviceName || item.itemName}</td>
+            <td>${itemDelDate}</td>
+            <td>${item.serviceName || item.itemName}
+                ${item.orderId && inv.isCycleInvoice ? `<div style="font-size:10px; color:#64748b; margin-top:2px;">Order: ${item.orderId}</div>` : ''}
+            </td>
             <td class="center">${item.quantity}</td>
             <td class="right">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</td>
             <td class="right">${currency}${Number(item.subtotal || 0).toFixed(2)}</td>
-          </tr>`).join('')}` : ''}
+          </tr>`;
+        }).join('')}` : ''}
 
 
       ${refundedItems.length > 0 ? `
         <tr class="section-hdr"><td colspan="5">🔄 Refunded Items</td></tr>
-        ${refundedItems.map((item: any, idx: number) => `
+        ${refundedItems.map((item: any) => {
+          const itemDelDate = item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : formattedDate;
+          return `
           <tr>
-            <td>${idx === 0 ? formattedDate : '—'}</td>
-            <td>${item.serviceName || item.itemName}${item.refundReason ? `<br/><span style="font-size:10px;color:#dc2626;">Reason: ${item.refundReason}</span>` : ''}</td>
+            <td>${itemDelDate}</td>
+            <td>${item.serviceName || item.itemName}${item.refundReason ? `<br/><span style="font-size:10px;color:#dc2626;">Reason: ${item.refundReason}</span>` : ''}
+                ${item.orderId && inv.isCycleInvoice ? `<div style="font-size:10px; color:#64748b; margin-top:2px;">Order: ${item.orderId}</div>` : ''}
+            </td>
             <td class="center">${item.damagedQuantity || item.quantity}</td>
             <td class="right">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</td>
             <td class="red">-${currency}${Number(item.refundAmount || item.subtotal || 0).toFixed(2)}</td>
-          </tr>`).join('')}` : ''}
+          </tr>`;
+        }).join('')}` : ''}
     </tbody>
   </table>
 
