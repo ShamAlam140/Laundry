@@ -89,14 +89,14 @@ jobs:
           echo "PP_UUID=$UUID" >> $GITHUB_ENV
           echo "✅ Certificate and provisioning profile installed. UUID: $UUID"
 
-      - name: Bump version to 1.5.6
+      - name: Bump version to 1.5.8
         run: |
           cd ios
           # Update MARKETING_VERSION
-          agvtool new-marketing-version 1.5.6
+          agvtool new-marketing-version 1.5.8
           # Bump build number
           agvtool next-version -all
-          echo "✅ Version bumped to 1.5.6"
+          echo "✅ Version bumped to 1.5.8"
 
       - name: Pre-bundle React Native JS
         run: |
@@ -173,7 +173,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PeninsulaLaundries-iOS-v1.5.6
+          name: PeninsulaLaundries-iOS-v1.5.8
           path: ${{ runner.temp }}/ipa_output/*.ipa
           retention-days: 30
 

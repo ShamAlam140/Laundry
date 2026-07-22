@@ -59,15 +59,15 @@ export default function HomeScreen({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
             <ScrollView
                 refreshControl={
                     <RefreshControl
@@ -79,7 +79,7 @@ export default function HomeScreen({ navigation }: any) {
                 }
             >
                 <LinearGradient
-                    colors={['#0e7490', '#0284c7', '#0f172a']}
+                    colors={['#0e7490', '#000000']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
                     style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 60 }}
@@ -125,7 +125,7 @@ export default function HomeScreen({ navigation }: any) {
                         style={{ marginBottom: 24 }}
                     >
                         <LinearGradient
-                            colors={['#06b6d4', '#0284c7']}
+                            colors={['#0369a1', '#082f49']}
                             style={{
                                 borderRadius: 24,
                                 padding: 24,
@@ -146,7 +146,7 @@ export default function HomeScreen({ navigation }: any) {
                                 <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>Order Now</Text>
                                 <Text style={{ color: '#ffffff', fontSize: 14 }}>→</Text>
                             </View>
-                            <View style={{ position: 'absolute', right: 20, bottom: 10, opacity: 0.15 }}>
+                            <View style={{ position: 'absolute', right: 20, bottom: 10, opacity: 0.7 }}>
                                 <Text style={{ fontSize: 80 }}>🧺</Text>
                             </View>
                         </LinearGradient>
@@ -164,18 +164,22 @@ export default function HomeScreen({ navigation }: any) {
                                 onPress={() => navigation.navigate(btn.screen)}
                                 style={{
                                     flex: 1,
-                                    backgroundColor: '#1e293b',
-                                    borderRadius: 20,
-                                    padding: 16,
+                                    backgroundColor: '#1A1A1A',
+                                    borderRadius: 24,
+                                    paddingVertical: 24,
+                                    paddingHorizontal: 8,
                                     alignItems: 'center',
-                                    borderWidth: 1,
-                                    borderColor: '#334155',
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 8,
+                                    elevation: 3,
                                 }}
                             >
-                                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                                    <Text style={{ fontSize: 24 }}>{btn.icon}</Text>
+                                <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 26 }}>{btn.icon}</Text>
                                 </View>
-                                <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 12 }}>{btn.label}</Text>
+                                <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 13 }}>{btn.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -184,12 +188,15 @@ export default function HomeScreen({ navigation }: any) {
                     {/* How it Works / Process */}
                     <View
                         style={{
-                            backgroundColor: '#1e293b',
-                            borderRadius: 20,
-                            padding: 16,
-                            borderWidth: 1,
-                            borderColor: '#334155',
+                            backgroundColor: '#1A1A1A',
+                            borderRadius: 24,
+                            padding: 20,
                             marginBottom: 16,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 8,
+                            elevation: 3,
                         }}
                     >
                         <Text style={{ color: '#f1f5f9', fontSize: 13, fontWeight: '700', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -203,10 +210,10 @@ export default function HomeScreen({ navigation }: any) {
                                 { step: '4', title: 'Pay & Relax', icon: '✅' },
                             ].map((item, index) => (
                                 <View key={index} style={{ alignItems: 'center', flex: 1 }}>
-                                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: '#334155' }}>
-                                        <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+                                    <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 22 }}>{item.icon}</Text>
                                     </View>
-                                    <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{item.title}</Text>
+                                    <Text style={{ color: '#cbd5e1', fontSize: 11, fontWeight: '600' }}>{item.title}</Text>
                                 </View>
                             ))}
                         </View>
@@ -215,9 +222,9 @@ export default function HomeScreen({ navigation }: any) {
                     {/* Service Guarantee Banner */}
                     <View
                         style={{
-                            backgroundColor: '#06b6d4',
-                            borderRadius: 20,
-                            padding: 16,
+                            backgroundColor: '#083344',
+                            borderRadius: 24,
+                            padding: 20,
                             marginBottom: 16,
                             flexDirection: 'row',
                             alignItems: 'center',
@@ -244,11 +251,14 @@ export default function HomeScreen({ navigation }: any) {
                                 key={i}
                                 style={{
                                     flex: 1,
-                                    backgroundColor: '#1e293b',
-                                    borderRadius: 20,
+                                    backgroundColor: '#121212',
+                                    borderRadius: 24,
                                     padding: 16,
-                                    borderWidth: 1,
-                                    borderColor: '#334155',
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.1,
+                                    shadowRadius: 8,
+                                    elevation: 3,
                                 }}
                             >
                                 <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 }}>
@@ -266,14 +276,17 @@ export default function HomeScreen({ navigation }: any) {
                         <View
                             style={{
                                 backgroundColor: '#451a03',
-                                borderRadius: 20,
-                                padding: 18,
-                                borderWidth: 1,
-                                borderColor: '#78350f',
+                                borderRadius: 24,
+                                padding: 20,
                                 marginBottom: 16,
                                 flexDirection: 'row',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
+                                shadowColor: '#fbbf24',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 8,
+                                elevation: 3,
                             }}
                         >
                             <View>
@@ -295,12 +308,10 @@ export default function HomeScreen({ navigation }: any) {
                         {summary?.recentOrders?.length === 0 ? (
                             <View
                                 style={{
-                                    backgroundColor: '#1e293b',
-                                    borderRadius: 20,
+                                    backgroundColor: '#121212',
+                                    borderRadius: 24,
                                     padding: 40,
                                     alignItems: 'center',
-                                    borderWidth: 1,
-                                    borderColor: '#334155',
                                 }}
                             >
                                 <Text style={{ fontSize: 40, marginBottom: 12 }}>📦</Text>
@@ -308,17 +319,15 @@ export default function HomeScreen({ navigation }: any) {
                             </View>
                         ) : (
                             summary?.recentOrders?.map((order: any) => {
-                                const colors = statusColors[order.status] || { bg: '#1e293b', text: '#94a3b8', icon: '📋' };
+                                const colors = statusColors[order.status] || { bg: '#121212', text: '#94a3b8', icon: '📋' };
                                 return (
                                     <View
                                         key={order._id}
                                         style={{
-                                            backgroundColor: '#1e293b',
-                                            borderRadius: 20,
-                                            padding: 16,
-                                            marginBottom: 10,
-                                            borderWidth: 1,
-                                            borderColor: '#334155',
+                                            backgroundColor: '#121212',
+                                            borderRadius: 24,
+                                            padding: 20,
+                                            marginBottom: 12,
                                         }}
                                     >
                                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

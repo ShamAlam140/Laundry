@@ -23,12 +23,12 @@ export default function ProfileScreen() {
     ];
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
             {/* Profile Header */}
             <LinearGradient
-                colors={['#0e7490', '#0284c7', '#0f172a']}
+                colors={['#0e7490', '#000000']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
                 style={{ paddingHorizontal: 20, paddingTop: 60, paddingBottom: 40, alignItems: 'center' }}
@@ -58,12 +58,15 @@ export default function ProfileScreen() {
                 {/* Profile Details Card */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
-                        borderRadius: 20,
+                        backgroundColor: '#121212',
+                        borderRadius: 24,
                         padding: 20,
-                        borderWidth: 1,
-                        borderColor: '#334155',
                         marginBottom: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 3,
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 16, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -77,7 +80,7 @@ export default function ProfileScreen() {
                                 alignItems: 'center',
                                 paddingVertical: 14,
                                 borderBottomWidth: i < fields.length - 1 ? 1 : 0,
-                                borderBottomColor: '#334155',
+                                borderBottomColor: 'rgba(255,255,255,0.05)',
                             }}
                         >
                             <View
@@ -85,7 +88,7 @@ export default function ProfileScreen() {
                                     width: 40,
                                     height: 40,
                                     borderRadius: 12,
-                                    backgroundColor: '#0f172a',
+                                    backgroundColor: '#000000',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     marginRight: 14,
@@ -108,12 +111,15 @@ export default function ProfileScreen() {
                 {/* Help & Support Card */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
-                        borderRadius: 20,
+                        backgroundColor: '#121212',
+                        borderRadius: 24,
                         padding: 20,
-                        borderWidth: 1,
-                        borderColor: '#334155',
                         marginBottom: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 3,
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 16, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -132,7 +138,7 @@ export default function ProfileScreen() {
                                 alignItems: 'center',
                                 paddingVertical: 14,
                                 borderBottomWidth: i < 2 ? 1 : 0,
-                                borderBottomColor: '#334155',
+                                borderBottomColor: 'rgba(255,255,255,0.05)',
                             }}
                         >
                             <View
@@ -140,7 +146,7 @@ export default function ProfileScreen() {
                                     width: 40,
                                     height: 40,
                                     borderRadius: 12,
-                                    backgroundColor: '#0f172a',
+                                    backgroundColor: '#000000',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     marginRight: 14,
@@ -161,18 +167,17 @@ export default function ProfileScreen() {
                 <TouchableOpacity onPress={handleLogout} activeOpacity={0.8}>
                     <View
                         style={{
-                            backgroundColor: '#1e293b',
-                            borderRadius: 16,
-                            padding: 16,
-                            borderWidth: 1,
-                            borderColor: '#7f1d1d',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderRadius: 100,
+                            padding: 18,
                             flexDirection: 'row',
                             alignItems: 'center',
                             justifyContent: 'center',
                             marginBottom: 32,
+                            marginTop: 10,
                         }}
                     >
-                        <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 16 }}>🚪 Logout</Text>
+                        <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 16, letterSpacing: 0.5 }}>Logout</Text>
                     </View>
                 </TouchableOpacity>
             </ScrollView>

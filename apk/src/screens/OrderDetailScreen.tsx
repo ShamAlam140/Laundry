@@ -42,7 +42,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
@@ -50,18 +50,18 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
     if (!order) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <Text style={{ color: '#64748b' }}>Order not found</Text>
             </View>
         );
     }
 
-    const colors = statusColors[order.status] || { bg: '#1e293b', text: '#94a3b8', icon: '📋' };
+    const colors = statusColors[order.status] || { bg: '#121212', text: '#94a3b8', icon: '📋' };
     const currentStatusIndex = statusOrder.indexOf(order.status);
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
             {/* Header */}
             <View
@@ -71,7 +71,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                     paddingBottom: 14,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: '#0f172a',
+                    backgroundColor: '#000000',
                 }}
             >
                 <TouchableOpacity
@@ -80,12 +80,12 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                         width: 40,
                         height: 40,
                         borderRadius: 12,
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         alignItems: 'center',
                         justifyContent: 'center',
                         marginRight: 14,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ color: '#06b6d4', fontSize: 18, fontWeight: '700' }}>←</Text>
@@ -107,13 +107,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 {/* Status Timeline */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         marginHorizontal: 20,
                         marginTop: 12,
                         borderRadius: 20,
                         padding: 20,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 18, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -123,7 +123,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                         const isActive = index <= currentStatusIndex && order.status !== 'cancelled';
                         const isCurrent = status === order.status;
                         const historyEntry = order.statusHistory?.find((h: any) => h.status === status);
-                        const sColors = statusColors[status] || { bg: '#1e293b', text: '#94a3b8', icon: '📋' };
+                        const sColors = statusColors[status] || { bg: '#121212', text: '#94a3b8', icon: '📋' };
 
                         return (
                             <View key={status} style={{ flexDirection: 'row', marginBottom: 2 }}>
@@ -134,7 +134,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                             width: isCurrent ? 22 : 14,
                                             height: isCurrent ? 22 : 14,
                                             borderRadius: 11,
-                                            backgroundColor: isActive ? sColors.text : '#334155',
+                                            backgroundColor: isActive ? sColors.text : '#262626',
                                             borderWidth: isCurrent ? 3 : 0,
                                             borderColor: isCurrent ? sColors.bg : 'transparent',
                                         }}
@@ -144,7 +144,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                             style={{
                                                 width: 2,
                                                 height: 32,
-                                                backgroundColor: isActive ? '#06b6d4' : '#334155',
+                                                backgroundColor: isActive ? '#06b6d4' : '#262626',
                                             }}
                                         />
                                     )}
@@ -177,13 +177,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 {/* Items */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         marginHorizontal: 20,
                         marginTop: 10,
                         borderRadius: 20,
                         padding: 20,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -198,7 +198,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                 justifyContent: 'space-between',
                                 paddingVertical: 12,
                                 borderBottomWidth: index < order.items.length - 1 ? 1 : 0,
-                                borderBottomColor: '#334155',
+                                borderBottomColor: '#262626',
                             }}
                         >
                             <View style={{ flex: 1 }}>
@@ -215,13 +215,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 {/* Amount Breakdown */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         marginHorizontal: 20,
                         marginTop: 10,
                         borderRadius: 20,
                         padding: 20,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -257,7 +257,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                             paddingVertical: 12,
                             marginTop: 8,
                             borderTopWidth: 1,
-                            borderTopColor: '#334155',
+                            borderTopColor: '#262626',
                         }}
                     >
                         <Text style={{ color: '#f1f5f9', fontSize: 18, fontWeight: '800' }}>Total</Text>
@@ -271,7 +271,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                 marginTop: 12,
                                 paddingTop: 12,
                                 borderTopWidth: 1,
-                                borderTopColor: '#334155',
+                                borderTopColor: '#262626',
                                 flexDirection: 'row',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
@@ -307,13 +307,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 {order.specialInstructions ? (
                     <View
                         style={{
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#121212',
                             marginHorizontal: 20,
                             marginTop: 10,
                             borderRadius: 20,
                             padding: 20,
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: '#262626',
                         }}
                     >
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -327,13 +327,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 {order.deliveries?.length > 0 && (
                     <View
                         style={{
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#121212',
                             marginHorizontal: 20,
                             marginTop: 10,
                             borderRadius: 20,
                             padding: 20,
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: '#262626',
                         }}
                     >
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -348,7 +348,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                     justifyContent: 'space-between',
                                     paddingVertical: 10,
                                     borderBottomWidth: 1,
-                                    borderBottomColor: '#334155',
+                                    borderBottomColor: '#262626',
                                 }}
                             >
                                 <View>
@@ -365,7 +365,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                                         paddingHorizontal: 10,
                                         paddingVertical: 4,
                                         borderRadius: 8,
-                                        backgroundColor: d.status === 'completed' ? '#14532d' : d.status === 'in-transit' ? '#164e63' : '#1e293b',
+                                        backgroundColor: d.status === 'completed' ? '#14532d' : d.status === 'in-transit' ? '#164e63' : '#121212',
                                     }}
                                 >
                                     <Text

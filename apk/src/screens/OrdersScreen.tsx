@@ -57,20 +57,23 @@ export default function OrdersScreen({ navigation }: any) {
     );
 
     const renderOrder = ({ item }: any) => {
-        const colors = statusColors[item.status] || { bg: '#1e293b', text: '#94a3b8', icon: '📋' };
+        const colors = statusColors[item.status] || { bg: '#121212', text: '#94a3b8', icon: '📋' };
         const itemCount = item.items?.length || 0;
 
         return (
             <TouchableOpacity
                 onPress={() => navigation.navigate('OrderDetail', { orderId: item._id })}
                 style={{
-                    backgroundColor: '#1e293b',
-                    borderRadius: 20,
-                    padding: 16,
-                    marginBottom: 10,
+                    backgroundColor: '#121212',
+                    borderRadius: 24,
+                    padding: 20,
+                    marginBottom: 12,
                     marginHorizontal: 20,
-                    borderWidth: 1,
-                    borderColor: '#334155',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 8,
+                    elevation: 3,
                 }}
                 activeOpacity={0.7}
             >
@@ -101,10 +104,10 @@ export default function OrdersScreen({ navigation }: any) {
                 {item.deliveryDate && (
                     <View
                         style={{
-                            marginTop: 10,
-                            paddingTop: 10,
+                            marginTop: 14,
+                            paddingTop: 14,
                             borderTopWidth: 1,
-                            borderTopColor: '#334155',
+                            borderTopColor: 'rgba(255,255,255,0.05)',
                             flexDirection: 'row',
                             alignItems: 'center',
                         }}
@@ -121,31 +124,37 @@ export default function OrdersScreen({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
             {/* Header */}
-            <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, backgroundColor: '#0f172a', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <View>
+            <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, backgroundColor: '#000000', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, marginRight: 10 }}>
                     <Text style={{ fontSize: 26, fontWeight: '800', color: '#f1f5f9' }}>My Orders</Text>
                     <Text style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>Track your laundry orders</Text>
                 </View>
                 <TouchableOpacity
                     onPress={() => navigation.navigate('CreateOrder')}
                     style={{
-                        backgroundColor: '#06b6d4',
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderRadius: 10,
+                        backgroundColor: '#0ea5e9',
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 100,
+                        shadowColor: '#0ea5e9',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 8,
+                        elevation: 4,
+                        marginTop: 4,
                     }}
                 >
-                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>+ New</Text>
+                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>+ New Order</Text>
                 </TouchableOpacity>
             </View>
 
@@ -161,12 +170,10 @@ export default function OrdersScreen({ navigation }: any) {
                             onPress={() => setActiveFilter(item.value)}
                             style={{
                                 marginRight: 8,
-                                paddingHorizontal: 16,
-                                paddingVertical: 8,
-                                borderRadius: 12,
-                                backgroundColor: activeFilter === item.value ? '#06b6d4' : '#1e293b',
-                                borderWidth: 1,
-                                borderColor: activeFilter === item.value ? '#06b6d4' : '#334155',
+                                paddingHorizontal: 18,
+                                paddingVertical: 10,
+                                borderRadius: 100,
+                                backgroundColor: activeFilter === item.value ? '#0ea5e9' : 'rgba(255,255,255,0.05)',
                             }}
                         >
                             <Text

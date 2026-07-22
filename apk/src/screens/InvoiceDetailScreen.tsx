@@ -21,14 +21,14 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
     }
     if (!invoice) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <Text style={{ color: '#64748b' }}>Invoice not found</Text>
             </View>
         );
@@ -38,8 +38,8 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
     const psBg = invoice.paymentStatus === 'paid' ? '#14532d' : invoice.paymentStatus === 'partial' ? '#451a03' : '#450a0a';
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
             {/* Header */}
             <View
@@ -57,12 +57,12 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
                         width: 40,
                         height: 40,
                         borderRadius: 12,
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         alignItems: 'center',
                         justifyContent: 'center',
                         marginRight: 14,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ color: '#06b6d4', fontSize: 18, fontWeight: '700' }}>←</Text>
@@ -84,13 +84,13 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
                 {/* Amount Card */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         marginHorizontal: 20,
                         marginTop: 12,
                         borderRadius: 20,
                         padding: 20,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -127,7 +127,7 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
                             paddingVertical: 12,
                             marginTop: 8,
                             borderTopWidth: 1,
-                            borderTopColor: '#334155',
+                            borderTopColor: '#262626',
                         }}
                     >
                         <Text style={{ color: '#f1f5f9', fontSize: 18, fontWeight: '800' }}>Total</Text>
@@ -173,13 +173,13 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
                 {/* Payment History */}
                 <View
                     style={{
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         marginHorizontal: 20,
                         marginTop: 10,
                         borderRadius: 20,
                         padding: 20,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -200,7 +200,7 @@ export default function InvoiceDetailScreen({ route, navigation }: any) {
                                     alignItems: 'center',
                                     paddingVertical: 12,
                                     borderBottomWidth: 1,
-                                    borderBottomColor: '#334155',
+                                    borderBottomColor: '#262626',
                                 }}
                             >
                                 <View>

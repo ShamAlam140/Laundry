@@ -7,6 +7,7 @@ const Settings = require('../models/Settings');
 const Notification = require('../models/Notification');
 const { createNotification } = require('./notificationController');
 const sendEmail = require('../utils/emailService');
+const moment = require('moment-timezone');
 
 // @desc    Get customer's orders
 // @route   GET /api/customer-portal/orders
@@ -369,17 +370,80 @@ exports.createMyOrder = async (req, res, next) => {
             totalAmount,
         });
 
-        // Auto-create invoice
-        const isCycleCustomer = req.customer.notificationFrequency && req.customer.notificationFrequency !== 'none';
-        await Invoice.create({
-            order: order._id,
-            customer: req.customer._id,
-            subtotal,
-            taxAmount,
-            totalAmount,
-            isApproved: false, // Invoices start as pending/unapproved
-            isGenerated: !isCycleCustomer,
-        });
+        // Auto-create or merge into cycle invoice
+        const creditDays = req.customer.creditDays || 0;
+        const isCycleInvoice = creditDays > 1;
+
+        if (isCycleInvoice) {
+            // Check if there is already an open cycle invoice for this customer
+            let existingInvoice = await Invoice.findOne({
+                customer: req.customer._id,
+                isCycleInvoice: true,
+                isApproved: false,
+                paymentStatus: 'unpaid',
+            });
+
+            if (existingInvoice) {
+                // Merge this order into the existing cycle invoice
+                existingInvoice.linkedOrders.push(order._id);
+                existingInvoice.subtotal += order.subtotal;
+                existingInvoice.taxAmount += order.taxAmount;
+                existingInvoice.totalAmount += order.totalAmount;
+                existingInvoice.balanceDue += order.totalAmount;
+                await existingInvoice.save();
+            } else {
+                // Create a new cycle invoice
+                let cycleReadyDate = new Date();
+                const timezone = 'Australia/Sydney';
+                const m = moment().tz(timezone);
+
+                if (creditDays === 7) {
+                    let dayOfWeek = m.isoWeekday();
+                    if (dayOfWeek !== 7) m.isoWeekday(7);
+                    cycleReadyDate = m.endOf('day').toDate();
+                } else if (creditDays === 15) {
+                    if (m.date() <= 15) m.date(15);
+                    else m.endOf('month');
+                    cycleReadyDate = m.endOf('day').toDate();
+                } else if (creditDays === 30) {
+                    cycleReadyDate = m.endOf('month').endOf('day').toDate();
+                } else if (creditDays > 1) {
+                    cycleReadyDate = m.add(creditDays, 'days').endOf('day').toDate();
+                }
+
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + creditDays);
+
+                await Invoice.create({
+                    customer: req.customer._id,
+                    subtotal,
+                    taxAmount,
+                    totalAmount,
+                    balanceDue: totalAmount,
+                    paidAmount: 0,
+                    isApproved: false,
+                    isGenerated: true,
+                    isCycleInvoice: true,
+                    linkedOrders: [order._id],
+                    dueDate,
+                    terms: `NET ${creditDays}`,
+                    cycleReadyDate,
+                });
+            }
+        } else {
+            // Standard customer
+            await Invoice.create({
+                order: order._id,
+                customer: req.customer._id,
+                subtotal,
+                taxAmount,
+                totalAmount,
+                balanceDue: totalAmount,
+                paidAmount: 0,
+                isApproved: false, // Invoices start as pending/unapproved
+                isGenerated: true,
+            });
+        }
 
         // Notify admins
         createNotification({

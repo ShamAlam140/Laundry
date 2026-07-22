@@ -360,7 +360,18 @@ export const generateBatchInvoiceHTML = (
 
     const invoiceRows = batchInvoices.map((inv) => {
         const order = inv.order || {};
-        const items = order.items || [];
+        let items: any[] = [];
+        if (inv.isCycleInvoice && inv.linkedOrders?.length > 0) {
+            inv.linkedOrders.forEach((ord: any) => {
+                if (ord.items) {
+                    const mappedItems = ord.items.map((item: any) => ({ ...item, orderId: ord.orderId, deliveryDate: ord.deliveryDate }));
+                    items.push(...mappedItems);
+                }
+            });
+        } else if (order.items) {
+            const mappedItems = order.items.map((item: any) => ({ ...item, orderId: order.orderId, deliveryDate: order.deliveryDate }));
+            items.push(...mappedItems);
+        }
         const services = items.filter((item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service);
         const refundedItems = items.filter((item: any) => item.isRefunded);
         const deliveryDate = order.deliveryDate ? formatShortDate(order.deliveryDate) : formatShortDate(inv.createdAt);

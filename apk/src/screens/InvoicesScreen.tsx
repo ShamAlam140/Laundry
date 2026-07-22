@@ -44,7 +44,7 @@ export default function InvoicesScreen({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
@@ -52,46 +52,19 @@ export default function InvoicesScreen({ navigation }: any) {
 
     const currentInvoicesList = activeTab === 'all' ? invoices : (cycleData?.invoices || []);
 
-    const handlePrintAll = () => {
-        if (currentInvoicesList.length === 0) return;
-        navigation.navigate('InvoicePreview', {
-            invoices: currentInvoicesList,
-            cycleLabel: activeTab === 'cycle' ? (cycleData?.frequencyLabel || 'Cycle') : 'All Invoices',
-            periodStart: activeTab === 'cycle' ? cycleData?.startDate : null,
-            periodEnd: activeTab === 'cycle' ? cycleData?.endDate : null,
-        });
-    };
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-            <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, backgroundColor: '#0f172a', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
+            <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, backgroundColor: '#000000', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, marginRight: 10 }}>
                     <Text style={{ fontSize: 26, fontWeight: '800', color: '#f1f5f9' }}>My Invoices</Text>
                     <Text style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>Track your laundry billing & payments</Text>
                 </View>
-                {currentInvoicesList.length > 0 && (
-                    <TouchableOpacity
-                        onPress={handlePrintAll}
-                        style={{
-                            backgroundColor: '#0e7490',
-                            paddingVertical: 8,
-                            paddingHorizontal: 12,
-                            borderRadius: 12,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginTop: 4,
-                        }}
-                    >
-                        <Text style={{ fontSize: 14 }}>🖨️</Text>
-                        <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 12 }}>Print All</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
+                            </View>
 
             {/* Tabs Segmented Control */}
-            <View style={{ flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#1e293b', borderRadius: 14, padding: 4, borderWidth: 1, borderColor: '#334155' }}>
+            <View style={{ flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#121212', borderRadius: 14, padding: 4, borderWidth: 1, borderColor: '#262626' }}>
                 <TouchableOpacity
                     onPress={() => setActiveTab('all')}
                     style={{
@@ -131,9 +104,9 @@ export default function InvoicesScreen({ navigation }: any) {
                             marginBottom: 20,
                             padding: 20,
                             borderRadius: 24,
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#121212',
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: '#262626',
                             flexDirection: 'row',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -191,7 +164,7 @@ export default function InvoicesScreen({ navigation }: any) {
                         marginBottom: 16,
                         padding: 14,
                         borderRadius: 16,
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         borderLeftWidth: 4,
                         borderLeftColor: '#06b6d4',
                     }}
@@ -217,7 +190,7 @@ export default function InvoicesScreen({ navigation }: any) {
                 contentContainerStyle={{ paddingTop: 8, paddingBottom: 20 }}
                 ListEmptyComponent={
                     activeTab === 'cycle' && cycleData?.frequency === 'none' ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#1e293b', padding: 24, borderRadius: 24, borderWidth: 1, borderColor: '#334155' }}>
+                        <View style={{ alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#121212', padding: 24, borderRadius: 24, borderWidth: 1, borderColor: '#262626' }}>
                             <Text style={{ fontSize: 44, marginBottom: 16 }}>🗓️</Text>
                             <Text style={{ color: '#f1f5f9', fontSize: 16, fontWeight: '800', textAlign: 'center' }}>No Active Billing Cycle</Text>
                             <Text style={{ color: '#64748b', fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 18 }}>
@@ -234,20 +207,20 @@ export default function InvoicesScreen({ navigation }: any) {
                     )
                 }
                 renderItem={({ item }) => {
-                    const c = psColors[item.paymentStatus] || { bg: '#1e293b', text: '#94a3b8', icon: '📋' };
+                    const c = psColors[item.paymentStatus] || { bg: '#121212', text: '#94a3b8', icon: '📋' };
                     const isUnpaid = item.paymentStatus === 'unpaid' || item.paymentStatus === 'partial';
 
                     return (
                         <TouchableOpacity
                             onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item._id, fromCycle: activeTab === 'cycle' })}
                             style={{
-                                backgroundColor: isUnpaid ? '#111827' : '#1e293b',
+                                backgroundColor: isUnpaid ? '#111827' : '#121212',
                                 borderRadius: 20,
                                 padding: 18,
                                 marginBottom: 12,
                                 marginHorizontal: 20,
                                 borderWidth: 1,
-                                borderColor: isUnpaid ? '#ef4444' : '#334155',
+                                borderColor: isUnpaid ? '#ef4444' : '#262626',
                                 shadowColor: isUnpaid ? '#ef4444' : '#000',
                                 shadowOffset: { width: 0, height: 4 },
                                 shadowOpacity: isUnpaid ? 0.1 : 0,
@@ -275,7 +248,7 @@ export default function InvoicesScreen({ navigation }: any) {
                                 </View>
                             </View>
                             
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, borderTopWidth: 1, borderTopColor: isUnpaid ? 'rgba(239, 68, 68, 0.1)' : '#334155' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, borderTopWidth: 1, borderTopColor: isUnpaid ? 'rgba(239, 68, 68, 0.1)' : '#262626' }}>
                                 <View>
                                     <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>Total Amount</Text>
                                     <Text style={{ color: '#f1f5f9', fontWeight: '800', fontSize: 20, marginTop: 2 }}>{currency}{Number(item.totalAmount || 0).toFixed(2)}</Text>

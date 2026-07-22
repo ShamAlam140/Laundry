@@ -281,15 +281,15 @@ export default function CreateOrderScreen({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000' }}>
                 <ActivityIndicator size="large" color="#06b6d4" />
             </View>
         );
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
             {/* Header */}
             <View
@@ -307,12 +307,12 @@ export default function CreateOrderScreen({ navigation }: any) {
                         width: 40,
                         height: 40,
                         borderRadius: 12,
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         alignItems: 'center',
                         justifyContent: 'center',
                         marginRight: 14,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ color: '#06b6d4', fontSize: 18, fontWeight: '700' }}>←</Text>
@@ -349,9 +349,9 @@ export default function CreateOrderScreen({ navigation }: any) {
                             marginBottom: 20,
                             padding: 18,
                             borderRadius: 16,
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#121212',
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: '#262626',
                         }}
                     >
                         <Text style={{ color: '#f1f5f9', fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
@@ -386,13 +386,13 @@ export default function CreateOrderScreen({ navigation }: any) {
                                     <View
                                         key={service._id}
                                         style={{
-                                            backgroundColor: '#1e293b',
+                                            backgroundColor: '#121212',
                                             borderRadius: 16,
                                             padding: 16,
                                             marginHorizontal: 20,
                                             marginBottom: 8,
                                             borderWidth: 1,
-                                            borderColor: inCart ? typeInfo.color : '#334155',
+                                            borderColor: inCart ? typeInfo.color : '#262626',
                                         }}
                                     >
                                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -423,11 +423,11 @@ export default function CreateOrderScreen({ navigation }: any) {
                                                             width: 32,
                                                             height: 32,
                                                             borderRadius: 10,
-                                                            backgroundColor: '#0f172a',
+                                                            backgroundColor: '#000000',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
                                                             borderWidth: 1,
-                                                            borderColor: '#334155',
+                                                            borderColor: '#262626',
                                                         }}
                                                     >
                                                         <Text style={{ color: '#f1f5f9', fontSize: 16, fontWeight: '700' }}>−</Text>
@@ -507,13 +507,13 @@ export default function CreateOrderScreen({ navigation }: any) {
                             <View
                                 key={index}
                                 style={{
-                                    backgroundColor: '#1e293b',
+                                    backgroundColor: '#121212',
                                     borderRadius: 16,
                                     padding: 16,
                                     marginHorizontal: 20,
                                     marginBottom: 8,
                                     borderWidth: 1,
-                                    borderColor: '#334155',
+                                    borderColor: '#262626',
                                 }}
                             >
                                 {/* Row 1: Item Type & Item Name */}
@@ -522,7 +522,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                         <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '600', marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' }}>
                                             Item Type
                                         </Text>
-                                        <View style={{ backgroundColor: '#0f172a', borderRadius: 10, borderWidth: 1, borderColor: '#334155', height: 44 }}>
+                                        <View style={{ backgroundColor: '#000000', borderRadius: 10, borderWidth: 1, borderColor: '#262626', height: 44 }}>
                                             <Picker
                                                 selectedValue={item.itemType}
                                                 onValueChange={(value) => updateManualItem(index, 'itemType', value)}
@@ -547,10 +547,10 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             placeholder="e.g., Bedsheet, Towel"
                                             placeholderTextColor="#475569"
                                             style={{
-                                                backgroundColor: '#0f172a',
+                                                backgroundColor: '#000000',
                                                 borderRadius: 10,
                                                 borderWidth: 1,
-                                                borderColor: '#334155',
+                                                borderColor: '#262626',
                                                 color: '#f1f5f9',
                                                 fontSize: 13,
                                                 paddingHorizontal: 12,
@@ -575,10 +575,10 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             }}
                                             keyboardType="numeric"
                                             style={{
-                                                backgroundColor: '#0f172a',
+                                                backgroundColor: '#000000',
                                                 borderRadius: 10,
                                                 borderWidth: 1,
-                                                borderColor: '#334155',
+                                                borderColor: '#262626',
                                                 color: '#f1f5f9',
                                                 fontSize: 13,
                                                 paddingHorizontal: 12,
@@ -600,10 +600,10 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             }}
                                             keyboardType="decimal-pad"
                                             style={{
-                                                backgroundColor: '#0f172a',
+                                                backgroundColor: '#000000',
                                                 borderRadius: 10,
                                                 borderWidth: 1,
-                                                borderColor: '#334155',
+                                                borderColor: '#262626',
                                                 color: '#f1f5f9',
                                                 fontSize: 13,
                                                 paddingHorizontal: 12,
@@ -618,10 +618,10 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             Subtotal
                                         </Text>
                                         <View style={{
-                                            backgroundColor: '#0f172a',
+                                            backgroundColor: '#000000',
                                             borderRadius: 10,
                                             borderWidth: 1,
-                                            borderColor: '#334155',
+                                            borderColor: '#262626',
                                             paddingHorizontal: 12,
                                             paddingVertical: 10,
                                             height: 44,
@@ -638,7 +638,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             width: 44,
                                             height: 44,
                                             borderRadius: 10,
-                                            backgroundColor: '#1e293b',
+                                            backgroundColor: '#121212',
                                             borderWidth: 1,
                                             borderColor: '#ef4444',
                                             alignItems: 'center',
@@ -687,7 +687,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                 <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
                     <View
                         style={{
-                            backgroundColor: '#0f172a',
+                            backgroundColor: '#000000',
                             borderTopLeftRadius: 24,
                             borderTopRightRadius: 24,
                             padding: 20,
@@ -708,12 +708,12 @@ export default function CreateOrderScreen({ navigation }: any) {
                                 <View
                                     key={item.serviceId}
                                     style={{
-                                        backgroundColor: '#1e293b',
+                                        backgroundColor: '#121212',
                                         borderRadius: 16,
                                         padding: 14,
                                         marginBottom: 8,
                                         borderWidth: 1,
-                                        borderColor: '#334155',
+                                        borderColor: '#262626',
                                     }}
                                 >
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -742,8 +742,8 @@ export default function CreateOrderScreen({ navigation }: any) {
                                             }}
                                             style={{
                                                 width: 30, height: 30, borderRadius: 8,
-                                                backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center',
-                                                borderWidth: 1, borderColor: '#334155',
+                                                backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center',
+                                                borderWidth: 1, borderColor: '#262626',
                                             }}
                                         >
                                             <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '700' }}>−</Text>
@@ -777,7 +777,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                         <View
                                             key={index}
                                             style={{
-                                                backgroundColor: '#1e293b',
+                                                backgroundColor: '#121212',
                                                 borderRadius: 14,
                                                 padding: 12,
                                                 marginBottom: 6,
@@ -813,7 +813,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                 </Text>
                                 <TextInput
                                     style={{
-                                        backgroundColor: '#1e293b',
+                                        backgroundColor: '#121212',
                                         borderRadius: 14,
                                         padding: 14,
                                         color: '#f1f5f9',
@@ -821,7 +821,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                         minHeight: 80,
                                         textAlignVertical: 'top',
                                         borderWidth: 1,
-                                        borderColor: '#334155',
+                                        borderColor: '#262626',
                                     }}
                                     placeholder="E.g., please handle with care, starch shirts etc."
                                     placeholderTextColor="#475569"
@@ -838,7 +838,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                                 </Text>
                                 <View
                                     style={{
-                                        backgroundColor: '#0f172a',
+                                        backgroundColor: '#000000',
                                         borderRadius: 16,
                                         padding: 16,
                                         flexDirection: 'row',
@@ -864,19 +864,19 @@ export default function CreateOrderScreen({ navigation }: any) {
                             {/* Total Summary */}
                             <View
                                 style={{
-                                    backgroundColor: '#1e293b',
+                                    backgroundColor: '#121212',
                                     borderRadius: 16,
                                     padding: 16,
                                     marginTop: 16,
                                     borderWidth: 1,
-                                    borderColor: '#334155',
+                                    borderColor: '#262626',
                                 }}
                             >
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <Text style={{ color: '#64748b', fontSize: 14 }}>Items</Text>
                                     <Text style={{ color: '#94a3b8', fontSize: 14 }}>{getCartCount()}</Text>
                                 </View>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#334155' }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#262626' }}>
                                     <Text style={{ color: '#f1f5f9', fontSize: 18, fontWeight: '800' }}>Total</Text>
                                     <Text style={{ color: '#06b6d4', fontSize: 18, fontWeight: '800' }}>{currency}{Number(getCartTotal() || 0).toFixed(2)}</Text>
                                 </View>
@@ -909,12 +909,12 @@ export default function CreateOrderScreen({ navigation }: any) {
                 <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 }}>
                     <View
                         style={{
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#121212',
                             borderRadius: 32,
                             padding: 32,
                             alignItems: 'center',
                             borderWidth: 1,
-                            borderColor: '#334155',
+                            borderColor: '#262626',
                         }}
                     >
                         <LinearGradient
@@ -943,7 +943,7 @@ export default function CreateOrderScreen({ navigation }: any) {
                             Order ID: <Text style={{ color: '#06b6d4', fontWeight: '700' }}>#{lastOrderId}</Text>
                         </Text>
 
-                        <View style={{ width: '100%', backgroundColor: '#0f172a', borderRadius: 20, padding: 20, marginTop: 24, borderWidth: 1, borderColor: '#334155' }}>
+                        <View style={{ width: '100%', backgroundColor: '#000000', borderRadius: 20, padding: 20, marginTop: 24, borderWidth: 1, borderColor: '#262626' }}>
                             <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '700', marginBottom: 12 }}>WHAT HAPPENS NEXT?</Text>
                             
                             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>

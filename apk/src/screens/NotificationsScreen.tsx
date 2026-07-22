@@ -110,7 +110,7 @@ export default function NotificationsScreen({ navigation }: any) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
             
             {/* Header */}
             <View style={styles.header}>
@@ -161,7 +161,7 @@ export default function NotificationsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0f172a',
+        backgroundColor: '#000000',
     },
     header: {
         flexDirection: 'row',
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#1e293b',
+        borderBottomColor: '#121212',
     },
     backButton: {
         padding: 4,
@@ -201,12 +201,12 @@ const styles = StyleSheet.create({
         paddingBottom: 32,
     },
     notificationCard: {
-        backgroundColor: '#1e293b',
+        backgroundColor: '#121212',
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#262626',
     },
     unreadCard: {
         borderColor: '#06b6d4',

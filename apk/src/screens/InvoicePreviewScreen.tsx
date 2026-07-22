@@ -36,8 +36,8 @@ export default function InvoicePreviewScreen({ route, navigation }: any) {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
             {/* ── Header ── */}
             <View
@@ -47,9 +47,9 @@ export default function InvoicePreviewScreen({ route, navigation }: any) {
                     paddingBottom: 12,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: '#0f172a',
+                    backgroundColor: '#000000',
                     borderBottomWidth: 1,
-                    borderBottomColor: '#1e293b',
+                    borderBottomColor: '#121212',
                 }}
             >
                 {/* Back */}
@@ -59,12 +59,12 @@ export default function InvoicePreviewScreen({ route, navigation }: any) {
                         width: 40,
                         height: 40,
                         borderRadius: 12,
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         alignItems: 'center',
                         justifyContent: 'center',
                         marginRight: 14,
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ color: '#06b6d4', fontSize: 18, fontWeight: '700' }}>←</Text>
@@ -147,9 +147,9 @@ export default function InvoicePreviewScreen({ route, navigation }: any) {
                     paddingHorizontal: 20,
                     paddingVertical: 14,
                     paddingBottom: Platform.OS === 'ios' ? 28 : 14,
-                    backgroundColor: '#0f172a',
+                    backgroundColor: '#000000',
                     borderTopWidth: 1,
-                    borderTopColor: '#1e293b',
+                    borderTopColor: '#121212',
                 }}
             >
                 <TouchableOpacity
@@ -159,9 +159,9 @@ export default function InvoicePreviewScreen({ route, navigation }: any) {
                         paddingVertical: 14,
                         borderRadius: 14,
                         alignItems: 'center',
-                        backgroundColor: '#1e293b',
+                        backgroundColor: '#121212',
                         borderWidth: 1,
-                        borderColor: '#334155',
+                        borderColor: '#262626',
                     }}
                 >
                     <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 14 }}>← Close</Text>
