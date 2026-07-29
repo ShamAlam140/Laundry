@@ -11,7 +11,7 @@ const psColors: Record<string, { bg: string; text: string; icon: string }> = {
 };
 
 export default function InvoicesScreen({ navigation }: any) {
-    const { currency } = useSettings();
+    const { currency, refreshSettings } = useSettings();
     const [invoices, setInvoices] = useState<any[]>([]);
     const [cycleData, setCycleData] = useState<{
         frequency: string;
@@ -182,7 +182,7 @@ export default function InvoicesScreen({ navigation }: any) {
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
-                        onRefresh={() => { setRefreshing(true); fetchData(); }}
+                        onRefresh={() => { setRefreshing(true); fetchData(); refreshSettings(); }}
                         tintColor="#06b6d4"
                         colors={['#06b6d4']}
                     />

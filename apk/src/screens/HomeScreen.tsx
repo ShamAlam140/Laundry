@@ -34,7 +34,7 @@ const statusColors: Record<string, { bg: string; text: string; icon: string }> =
 
 export default function HomeScreen({ navigation }: any) {
     const { customer } = useAuth();
-    const { currency } = useSettings();
+    const { currency, refreshSettings } = useSettings();
     const [summary, setSummary] = useState<Summary | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -72,7 +72,7 @@ export default function HomeScreen({ navigation }: any) {
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
-                        onRefresh={() => { setRefreshing(true); fetchSummary(); }}
+                        onRefresh={() => { setRefreshing(true); fetchSummary(); refreshSettings(); }}
                         tintColor="#06b6d4"
                         colors={['#06b6d4']}
                     />

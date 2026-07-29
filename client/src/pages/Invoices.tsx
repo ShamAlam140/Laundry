@@ -69,14 +69,43 @@ const Invoices = () => {
 
     const enterEditMode = () => {
         if (!viewInvoice) return;
-        const orderItems = viewInvoice.order?.items || [];
-        setEditItems(orderItems.map((item: any) => ({
-            ...item,
-            quantity: item.shippedQuantity ?? item.quantity
-        })));
-        setEditDiscountPercent(viewInvoice.order?.discountPercent || 0);
-        setEditTaxPercent(viewInvoice.order?.taxPercent || 0);
-        setEditServiceCharge(viewInvoice.order?.serviceCharge || 0);
+        
+        let initialItems: any[] = [];
+        let defaultDiscount = 0;
+        let defaultTax = 0;
+        let defaultServiceCharge = 0;
+        
+        if (viewInvoice.isCycleInvoice && viewInvoice.linkedOrders) {
+            viewInvoice.linkedOrders.forEach((order: any) => {
+                const items = order.items || [];
+                items.forEach((item: any) => {
+                    initialItems.push({
+                        ...item,
+                        quantity: item.shippedQuantity ?? item.quantity,
+                        originalOrderId: order._id,
+                    });
+                });
+            });
+            // Try to get the percentage from the first order, as cycle orders usually share the same terms
+            defaultDiscount = viewInvoice.linkedOrders[0]?.discountPercent || 0;
+            defaultTax = viewInvoice.linkedOrders[0]?.taxPercent || 0;
+            // The service charge is usually summed up at the invoice level, but editing it overrides
+            defaultServiceCharge = viewInvoice.serviceCharge || 0;
+        } else {
+            const orderItems = viewInvoice.order?.items || [];
+            initialItems = orderItems.map((item: any) => ({
+                ...item,
+                quantity: item.shippedQuantity ?? item.quantity,
+            }));
+            defaultDiscount = viewInvoice.order?.discountPercent || 0;
+            defaultTax = viewInvoice.order?.taxPercent || 0;
+            defaultServiceCharge = viewInvoice.order?.serviceCharge || 0;
+        }
+
+        setEditItems(initialItems);
+        setEditDiscountPercent(defaultDiscount);
+        setEditTaxPercent(defaultTax);
+        setEditServiceCharge(defaultServiceCharge);
         setIsEditMode(true);
     };
 
