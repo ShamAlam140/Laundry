@@ -54,6 +54,11 @@ const Invoices = () => {
     const [editServiceCharge, setEditServiceCharge] = useState(0);
     const [editSaving, setEditSaving] = useState(false);
 
+    // ── Split Mode States ──
+    const [isSplitMode, setIsSplitMode] = useState(false);
+    const [splitDate, setSplitDate] = useState('');
+    const [splitSaving, setSplitSaving] = useState(false);
+
     // ── Edit Mode Calculated Totals ──
     const editCalc = useMemo(() => {
         if (!isEditMode) return { subtotal: 0, taxAmount: 0, discountAmount: 0, totalAmount: 0, balanceDue: 0 };
@@ -113,6 +118,64 @@ const Invoices = () => {
         setIsEditMode(false);
         setEditItems([]);
         setEditSaving(false);
+    };
+
+    // ── Split Mode Computed Data ──
+    const splitCalc = useMemo(() => {
+        if (!isSplitMode || !viewInvoice || !splitDate) return null;
+        const cutoff = new Date(splitDate);
+        cutoff.setHours(23, 59, 59, 999);
+
+        const allOrders = viewInvoice.linkedOrders || [];
+        const payNow: any[] = [];
+        const carryForward: any[] = [];
+
+        for (const order of allOrders) {
+            if (new Date(order.createdAt) <= cutoff) {
+                payNow.push(order);
+            } else {
+                carryForward.push(order);
+            }
+        }
+
+        const payNowTotal = payNow.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+        const carryTotal = carryForward.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+
+        return { payNow, carryForward, payNowTotal, carryTotal };
+    }, [isSplitMode, viewInvoice, splitDate]);
+
+    const enterSplitMode = () => {
+        setIsSplitMode(true);
+        setSplitDate('');
+    };
+
+    const exitSplitMode = () => {
+        setIsSplitMode(false);
+        setSplitDate('');
+        setSplitSaving(false);
+    };
+
+    const handleSplitInvoice = async () => {
+        if (!viewInvoice || !splitDate) {
+            toast.error('Please select a date to split');
+            return;
+        }
+        if (!splitCalc || splitCalc.payNow.length === 0) {
+            toast.error('No orders found on or before the selected date');
+            return;
+        }
+        try {
+            setSplitSaving(true);
+            const res = await api.post(`/invoices/${viewInvoice._id}/split`, { splitDate });
+            toast.success(res.data.message || 'Invoice split successfully!');
+            exitSplitMode();
+            setViewInvoice(null);
+            fetchInvoices();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to split invoice');
+        } finally {
+            setSplitSaving(false);
+        }
     };
 
     const handleEditItemChange = (index: number, field: string, value: any) => {
@@ -588,6 +651,8 @@ const Invoices = () => {
                 params.isApproved = 'false';
             } else if (activeTab === 'cycle') {
                 params.tab = 'cycle';
+            } else if (activeTab === 'standard') {
+                params.tab = 'standard';
             }
             
             const res = await api.get('/invoices', { params });
@@ -2541,8 +2606,37 @@ const Invoices = () => {
                                             <HiOutlineX className="w-3.5 h-3.5" /> Cancel
                                         </button>
                                     </>
+                                ) : isSplitMode ? (
+                                    <>
+                                        <button
+                                            onClick={handleSplitInvoice}
+                                            disabled={splitSaving || !splitDate}
+                                            className="flex items-center gap-1.5 px-4 py-1.5 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs rounded-lg transition-all font-bold shadow-lg"
+                                        >
+                                            {splitSaving ? (
+                                                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Splitting...</>
+                                            ) : (
+                                                <>Confirm Split & Approve</>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={exitSplitMode}
+                                            disabled={splitSaving}
+                                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/10 hover:bg-red-500/60 text-white text-xs rounded-lg transition-all font-medium"
+                                        >
+                                            <HiOutlineX className="w-3.5 h-3.5" /> Cancel
+                                        </button>
+                                    </>
                                 ) : (
                                     <>
+                                        {viewInvoice.isCycleInvoice && !viewInvoice.isApproved && viewInvoice.linkedOrders?.length > 1 && (
+                                            <button
+                                                onClick={enterSplitMode}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-500/90 hover:bg-indigo-500 text-white text-xs rounded-lg transition-all font-bold shadow"
+                                            >
+                                                Split & Pay Partial
+                                            </button>
+                                        )}
                                         {!viewInvoice.isApproved && (
                                             <button
                                                 onClick={() => handleApproveInvoice(viewInvoice._id)}
@@ -2691,7 +2785,92 @@ const Invoices = () => {
 
                             {/* Unified Invoice Table with 3 Sections */}
                             <div className="rounded-lg overflow-hidden border border-slate-200">
-                                {isEditMode ? (
+                                {isSplitMode ? (
+                                    /* ── SPLIT MODE UI ── */
+                                    <div className="p-4 space-y-6">
+                                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                                                        <HiOutlineCalendar className="w-5 h-5 text-indigo-500" />
+                                                        Select Split Date
+                                                    </h3>
+                                                    <p className="text-xs text-indigo-700/80 mt-1 max-w-md">
+                                                        Orders on or before this date will be approved for immediate payment. Orders after this date will be moved to a new cycle invoice.
+                                                    </p>
+                                                </div>
+                                                <div className="shrink-0">
+                                                    <input 
+                                                        type="date"
+                                                        value={splitDate}
+                                                        onChange={(e) => setSplitDate(e.target.value)}
+                                                        className="px-3 py-2 bg-white border border-indigo-200 rounded-lg text-sm text-indigo-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {splitDate && splitCalc && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Pay Now Section */}
+                                                <div className="border border-emerald-200 rounded-xl overflow-hidden bg-white">
+                                                    <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-200 flex justify-between items-center">
+                                                        <div>
+                                                            <h4 className="font-bold text-emerald-800 text-sm">Pay Now (Original)</h4>
+                                                            <p className="text-xs text-emerald-600 mt-0.5">{splitCalc.payNow.length} orders to approve</p>
+                                                        </div>
+                                                        <div className="text-lg font-black text-emerald-700">
+                                                            {currency}{splitCalc.payNowTotal.toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-0 max-h-60 overflow-y-auto">
+                                                        <table className="w-full text-xs">
+                                                            <tbody className="divide-y divide-emerald-100">
+                                                                {splitCalc.payNow.length === 0 ? (
+                                                                    <tr><td className="px-4 py-4 text-center text-emerald-600/60 font-medium italic">No orders found.</td></tr>
+                                                                ) : splitCalc.payNow.map((order: any) => (
+                                                                    <tr key={order._id} className="hover:bg-emerald-50/50">
+                                                                        <td className="px-4 py-2.5 font-medium text-emerald-900">{new Date(order.createdAt).toLocaleDateString()}</td>
+                                                                        <td className="px-4 py-2.5 text-emerald-700 font-mono text-xs">{order.orderId}</td>
+                                                                        <td className="px-4 py-2.5 text-right font-bold text-emerald-800">{currency}{(order.totalAmount || 0).toFixed(2)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* Carry Forward Section */}
+                                                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white opacity-80">
+                                                    <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                                                        <div>
+                                                            <h4 className="font-bold text-slate-700 text-sm">Next Cycle (New Invoice)</h4>
+                                                            <p className="text-xs text-slate-500 mt-0.5">{splitCalc.carryForward.length} orders carried over</p>
+                                                        </div>
+                                                        <div className="text-lg font-black text-slate-600">
+                                                            {currency}{splitCalc.carryTotal.toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-0 max-h-60 overflow-y-auto">
+                                                        <table className="w-full text-xs">
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {splitCalc.carryForward.length === 0 ? (
+                                                                    <tr><td className="px-4 py-4 text-center text-slate-400 font-medium italic">No orders to carry over.</td></tr>
+                                                                ) : splitCalc.carryForward.map((order: any) => (
+                                                                    <tr key={order._id} className="hover:bg-slate-50">
+                                                                        <td className="px-4 py-2.5 font-medium text-slate-600">{new Date(order.createdAt).toLocaleDateString()}</td>
+                                                                        <td className="px-4 py-2.5 text-slate-500 font-mono text-xs">{order.orderId}</td>
+                                                                        <td className="px-4 py-2.5 text-right font-bold text-slate-700">{currency}{(order.totalAmount || 0).toFixed(2)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : isEditMode ? (
                                     /* ── EDIT MODE TABLE ── */
                                     <>
                                         <table className="w-full text-xs">

@@ -80,7 +80,7 @@ exports.getPayments = async (req, res, next) => {
         const payments = await Payment.find(filter)
             .populate({
                 path: 'invoice',
-                select: 'invoiceId order customer totalAmount',
+                select: 'invoiceId order customer totalAmount isCycleInvoice linkedOrders',
                 populate: [
                     { path: 'order', select: 'orderId' },
                     { path: 'customer', select: 'name phone customerId' },

@@ -359,8 +359,12 @@ const Payments = () => {
                                                     {p.invoice?.invoiceId || '—'}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                                                {p.invoice?.order?.orderId || '—'}
+                                            <td className="px-5 py-4">
+                                                <span className="font-mono text-slate-700">
+                                                    {p.invoice?.isCycleInvoice && p.invoice?.linkedOrders?.length > 0 
+                                                        ? `Multiple (${p.invoice.linkedOrders.length})` 
+                                                        : (p.invoice?.order?.orderId || '—')}
+                                                </span>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <div className="font-medium text-slate-800">{p.invoice?.customer?.name || '—'}</div>
@@ -658,9 +662,9 @@ const PaymentModal = ({
                                                         <span className={`text-xs font-bold font-mono ${isSelected ? 'text-[#1c2a5e]' : 'text-slate-800'}`}>
                                                             {inv.invoiceId}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 font-mono">({inv.order?.orderId})</span>
-
-                                                        {/* Status Badge */}
+                                                        <span className="text-[10px] text-slate-400 font-mono">
+                                                            ({inv.isCycleInvoice && inv.linkedOrders?.length > 0 ? `Multiple (${inv.linkedOrders.length})` : (inv.order?.orderId || '—')})
+                                                        </span>
                                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider ${
                                                             inv.paymentStatus === 'partial' 
                                                                 ? 'bg-amber-50 text-amber-700 border border-amber-200/60' 

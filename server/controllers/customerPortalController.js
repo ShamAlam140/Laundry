@@ -399,11 +399,17 @@ exports.createMyOrder = async (req, res, next) => {
 
                 if (creditDays === 7) {
                     let dayOfWeek = m.isoWeekday();
-                    if (dayOfWeek !== 7) m.isoWeekday(7);
+                    if (dayOfWeek !== 7) {
+                        m.isoWeekday(7);
+                    }
                     cycleReadyDate = m.endOf('day').toDate();
                 } else if (creditDays === 15) {
-                    if (m.date() <= 15) m.date(15);
-                    else m.endOf('month');
+                    let date = m.date();
+                    if (date <= 15) {
+                        m.date(15);
+                    } else {
+                        m.endOf('month');
+                    }
                     cycleReadyDate = m.endOf('day').toDate();
                 } else if (creditDays === 30) {
                     cycleReadyDate = m.endOf('month').endOf('day').toDate();

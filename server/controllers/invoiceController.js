@@ -18,6 +18,13 @@ exports.getInvoices = async (req, res, next) => {
             filter.isCycleInvoice = true;
             // Only show cycle invoices when their time has come (midnight of 7th/15th/30th day)
             filter.cycleReadyDate = { $lte: new Date() }; 
+        } else if (tab === 'standard') {
+            filter.isApproved = true;
+            // Standard tab only shows non-cycle invoices
+            filter.$or = [
+                { isCycleInvoice: { $exists: false } },
+                { isCycleInvoice: false }
+            ];
         } else if (isApproved !== undefined) {
             filter.isApproved = isApproved === 'true';
             if (isApproved === 'false') {
@@ -27,10 +34,11 @@ exports.getInvoices = async (req, res, next) => {
             }
         } else {
             filter.isApproved = true;
-            // Standard tab only shows non-cycle invoices
+            // For generic queries (like Payments modal), fetch standard OR ready cycle invoices
             filter.$or = [
                 { isCycleInvoice: { $exists: false } },
-                { isCycleInvoice: false }
+                { isCycleInvoice: false },
+                { isCycleInvoice: true, cycleReadyDate: { $lte: new Date() } }
             ];
         }
 
@@ -457,6 +465,244 @@ exports.getPublicInvoice = async (req, res, next) => {
                     bankAccountNo: settings.bankAccountNo,
                     abn: settings.abn || settings.taxNumber,
                 }
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Split a cycle invoice at a given date
+// @route   POST /api/invoices/:id/split
+// @access  Private (Admin, Manager)
+exports.splitCycleInvoice = async (req, res, next) => {
+    try {
+        const { splitDate } = req.body;
+
+        if (!splitDate) {
+            return res.status(400).json({ success: false, message: 'splitDate is required' });
+        }
+
+        const invoice = await Invoice.findById(req.params.id)
+            .populate({
+                path: 'linkedOrders',
+                populate: [{ path: 'customer' }, { path: 'items' }],
+            })
+            .populate('customer');
+
+        if (!invoice) {
+            return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+
+        if (!invoice.isCycleInvoice) {
+            return res.status(400).json({ success: false, message: 'This is not a cycle invoice' });
+        }
+
+        if (invoice.isApproved) {
+            return res.status(400).json({ success: false, message: 'Invoice is already approved and cannot be split' });
+        }
+
+        if (!invoice.linkedOrders || invoice.linkedOrders.length === 0) {
+            return res.status(400).json({ success: false, message: 'No linked orders found in this invoice' });
+        }
+
+        // Parse the split date – include orders up to end of this day
+        const cutoffDate = new Date(splitDate);
+        cutoffDate.setHours(23, 59, 59, 999);
+
+        // Separate orders into two groups
+        const payNowOrders = [];
+        const carryForwardOrders = [];
+
+        for (const order of invoice.linkedOrders) {
+            const orderDate = new Date(order.createdAt);
+            if (orderDate <= cutoffDate) {
+                payNowOrders.push(order);
+            } else {
+                carryForwardOrders.push(order);
+            }
+        }
+
+        if (payNowOrders.length === 0) {
+            return res.status(400).json({ success: false, message: 'No orders found on or before the selected date' });
+        }
+
+        // If all orders fall within the date range, just approve the full invoice
+        if (carryForwardOrders.length === 0) {
+            invoice.isApproved = true;
+            await invoice.save();
+
+            // Send approval email (reuse existing logic)
+            try {
+                const settings = await Settings.findById('global') || {};
+                const currency = settings.currency || '$';
+                const Notification = require('../models/Notification');
+                await Notification.create({
+                    recipient: invoice.customer?._id || invoice.customer,
+                    recipientModel: 'Customer',
+                    type: 'invoice-approved',
+                    title: 'Invoice Approved',
+                    message: `Your invoice ${invoice.invoiceId} is now approved and ready for payment. Total amount: ${currency}${invoice.totalAmount.toFixed(2)}.`,
+                    relatedCustomer: invoice.customer?._id || invoice.customer,
+                });
+            } catch (err) {
+                console.error('Error creating notification during split-approve:', err);
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'All orders fall within the selected date. Invoice approved as-is.',
+                data: { approvedInvoice: invoice, newCycleInvoice: null },
+            });
+        }
+
+        // ── Calculate totals for Pay Now group ──
+        let payNowSubtotal = 0;
+        let payNowTax = 0;
+        let payNowDiscount = 0;
+        let payNowServiceCharge = 0;
+        let payNowTotal = 0;
+
+        for (const order of payNowOrders) {
+            payNowSubtotal += order.subtotal || 0;
+            payNowTax += order.taxAmount || 0;
+            payNowDiscount += order.discountAmount || 0;
+            payNowServiceCharge += order.serviceCharge || 0;
+            payNowTotal += order.totalAmount || 0;
+        }
+
+        // ── Calculate totals for Carry Forward group ──
+        let carrySubtotal = 0;
+        let carryTax = 0;
+        let carryDiscount = 0;
+        let carryServiceCharge = 0;
+        let carryTotal = 0;
+
+        for (const order of carryForwardOrders) {
+            carrySubtotal += order.subtotal || 0;
+            carryTax += order.taxAmount || 0;
+            carryDiscount += order.discountAmount || 0;
+            carryServiceCharge += order.serviceCharge || 0;
+            carryTotal += order.totalAmount || 0;
+        }
+
+        // ── Update the ORIGINAL invoice (Pay Now) ──
+        invoice.linkedOrders = payNowOrders.map(o => o._id);
+        invoice.subtotal = payNowSubtotal;
+        invoice.taxAmount = payNowTax;
+        invoice.discountAmount = payNowDiscount;
+        invoice.serviceCharge = payNowServiceCharge;
+        invoice.totalAmount = payNowTotal;
+        invoice.balanceDue = payNowTotal - (invoice.paidAmount || 0);
+        invoice.isApproved = true; // Auto-approve so payment can be taken immediately
+        await invoice.save();
+
+        // ── Create NEW cycle invoice for Carry Forward orders ──
+        const Customer = require('../models/Customer');
+        const customer = await Customer.findById(invoice.customer._id || invoice.customer);
+        const creditDays = customer?.creditDays || 7;
+        const moment = require('moment-timezone');
+        const timezone = 'Australia/Sydney';
+
+        let newCycleReadyDate = new Date();
+        const m = moment();
+        if (creditDays === 7) {
+            let dayOfWeek = m.isoWeekday();
+            if (dayOfWeek !== 7) m.isoWeekday(7);
+            newCycleReadyDate = m.endOf('day').toDate();
+        } else if (creditDays === 15) {
+            if (m.date() <= 15) {
+                m.date(15);
+            } else {
+                m.endOf('month');
+            }
+            newCycleReadyDate = m.endOf('day').toDate();
+        } else if (creditDays === 30) {
+            newCycleReadyDate = m.endOf('month').endOf('day').toDate();
+        } else if (creditDays > 1) {
+            newCycleReadyDate = m.add(creditDays, 'days').endOf('day').toDate();
+        }
+
+        const newDueDate = new Date(cutoffDate);
+        newDueDate.setDate(newDueDate.getDate() + 1 + creditDays);
+
+        const newCycleInvoice = await Invoice.create({
+            customer: invoice.customer._id || invoice.customer,
+            linkedOrders: carryForwardOrders.map(o => o._id),
+            subtotal: carrySubtotal,
+            taxAmount: carryTax,
+            discountAmount: carryDiscount,
+            serviceCharge: carryServiceCharge,
+            totalAmount: carryTotal,
+            paidAmount: 0,
+            balanceDue: carryTotal,
+            paymentStatus: 'unpaid',
+            isApproved: false,
+            isGenerated: true,
+            isCycleInvoice: true,
+            cycleReadyDate: newCycleReadyDate,
+            dueDate: newDueDate,
+            terms: `NET ${creditDays}`,
+            createdBy: req.user._id,
+        });
+
+        // Send approval notification for the original invoice
+        try {
+            const settings = await Settings.findById('global') || {};
+            const currency = settings.currency || '$';
+            const Notification = require('../models/Notification');
+            await Notification.create({
+                recipient: invoice.customer?._id || invoice.customer,
+                recipientModel: 'Customer',
+                type: 'invoice-approved',
+                title: 'Partial Invoice Approved',
+                message: `Your invoice ${invoice.invoiceId} has been partially approved for ${currency}${payNowTotal.toFixed(2)}. Remaining orders have been moved to a new cycle invoice ${newCycleInvoice.invoiceId}.`,
+                relatedCustomer: invoice.customer?._id || invoice.customer,
+            });
+
+            // Send email
+            if (customer && customer.email) {
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+                const publicUrl = `${frontendUrl}/public/invoice/${invoice._id}`;
+                const emailHtml = `
+                    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+                        <div style="background: linear-gradient(135deg, #1c2a5e, #3b82f6); padding: 32px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 24px;">📄 Partial Invoice Approved</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin-top: 8px; font-size: 14px; margin-bottom: 0;">Invoice #${invoice.invoiceId}</p>
+                        </div>
+                        <div style="padding: 32px;">
+                            <p style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0;">Dear ${customer.name},</p>
+                            <p style="color: #64748b; font-size: 14px; line-height: 1.6;">
+                                Your cycle invoice has been split. Invoice <strong>${invoice.invoiceId}</strong> for <strong>${currency}${payNowTotal.toFixed(2)}</strong> is now approved and ready for payment. 
+                                The remaining balance of <strong>${currency}${carryTotal.toFixed(2)}</strong> has been moved to a new cycle invoice <strong>${newCycleInvoice.invoiceId}</strong>.
+                            </p>
+                            <div style="text-align: center; margin: 32px 0;">
+                                <a href="${publicUrl}" style="background: linear-gradient(135deg, #1c2a5e, #3b82f6); color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 14px; display: inline-block;">
+                                    View & Download Invoice
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                sendEmail({
+                    email: customer.email,
+                    subject: `Partial Invoice Approved #${invoice.invoiceId} - Peninsula Laundries`,
+                    html: emailHtml,
+                }).catch(err => {
+                    console.error('❌ Failed to send split invoice email:', err.message);
+                });
+            }
+        } catch (err) {
+            console.error('Error sending split notification:', err);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Invoice split successfully. ${payNowOrders.length} orders approved for payment. ${carryForwardOrders.length} orders moved to new cycle invoice ${newCycleInvoice.invoiceId}.`,
+            data: {
+                approvedInvoice: invoice,
+                newCycleInvoice,
             },
         });
     } catch (error) {

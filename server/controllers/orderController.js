@@ -936,7 +936,8 @@ exports.shipOrder = async (req, res, next) => {
             }
             cycleReadyDate = m.endOf('day').toDate();
         } else if (creditDays === 15) {
-            if (m.date() <= 15) {
+            let date = m.date();
+            if (date <= 15) {
                 m.date(15);
             } else {
                 m.endOf('month');
@@ -947,6 +948,7 @@ exports.shipOrder = async (req, res, next) => {
         } else if (creditDays > 1) {
             cycleReadyDate = m.add(creditDays, 'days').endOf('day').toDate();
         }
+
 
         const terms = creditDays > 0 ? `NET ${creditDays}` : 'Due on Receipt';
 

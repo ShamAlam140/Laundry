@@ -47,7 +47,21 @@ const PublicInvoiceDetail = () => {
         );
     }
 
-    const allItems = [...(invoice.order?.items || [])];
+    const allItems: any[] = [];
+    if (invoice?.order && invoice.order.items) {
+        allItems.push(...invoice.order.items.map((item: any) => ({ ...item, deliveryDate: invoice.order.deliveryDate })));
+    }
+    if (invoice?.linkedOrders && invoice.linkedOrders.length > 0) {
+        invoice.linkedOrders.forEach((lo: any) => {
+            if (lo.items) {
+                allItems.push(...lo.items.map((item: any) => ({ ...item, deliveryDate: lo.deliveryDate || lo.createdAt })));
+            }
+        });
+    }
+
+    // Sort items by date
+    allItems.sort((a, b) => new Date(a.deliveryDate || 0).getTime() - new Date(b.deliveryDate || 0).getTime());
+
     const services = allItems.filter(item => !item.isRefunded && item.serviceType !== 'manual' && item.service);
     const refundedItems = allItems.filter(item => item.isRefunded);
 
@@ -55,9 +69,6 @@ const PublicInvoiceDetail = () => {
         if (!dateStr) return '—';
         return new Date(dateStr).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
     };
-
-    const deliveryDate = invoice.order?.deliveryDate;
-    const formattedDate = formatDate(deliveryDate);
 
     const generateInvoiceHTML = (inv: any) => {
         const biz = inv.business || {};
@@ -79,11 +90,6 @@ const PublicInvoiceDetail = () => {
         const services = allItems.filter((item: any) => !item.isRefunded && item.serviceType !== 'manual' && item.service);
         const refundedItems = allItems.filter((item: any) => item.isRefunded);
         
-        const deliveryDate = order.deliveryDate;
-        const formattedDate = deliveryDate 
-            ? new Date(deliveryDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
-            : '—';
-
         const subtotal = inv.subtotal || 0;
         const taxAmount = inv.taxAmount || 0;
         const totalAmount = inv.totalAmount || 0;
@@ -266,12 +272,12 @@ const PublicInvoiceDetail = () => {
                             <tr style="${styles.sectionHeader}">
                                 <td colspan="5">🔧 Services - Billable</td>
                             </tr>
-                            ${services.map((item: any, idx: number) => {
+                            ${services.map((item: any) => {
                                 const qty = item.shippedQuantity ?? item.quantity;
                                 const hasDiff = item.shippedQuantity !== null && item.shippedQuantity !== undefined && item.shippedQuantity !== item.quantity;
                                 return `
                                     <tr>
-                                        <td style="${styles.td}">${idx === 0 ? formattedDate : '—'}</td>
+                                        <td style="${styles.td}">${item.deliveryDate ? formatDate(item.deliveryDate) : '—'}</td>
                                         <td style="${styles.td}">${item.serviceName || item.itemName}</td>
                                         <td style="${styles.tdCenter}">${qty}${hasDiff ? ` <span style="font-size: 8px; color: #64748b;">(ord: ${item.quantity})</span>` : ''}</td>
                                         <td style="${styles.tdRight}">${currency}${Number(item.pricePerUnit || 0).toFixed(2)}</td>
@@ -285,9 +291,9 @@ const PublicInvoiceDetail = () => {
                             <tr style="${styles.sectionHeader}">
                                 <td colspan="5">🔄 Refunded Items</td>
                             </tr>
-                            ${refundedItems.map((item: any, idx: number) => `
+                            ${refundedItems.map((item: any) => `
                                 <tr>
-                                    <td style="${styles.td}">${idx === 0 ? formattedDate : '—'}</td>
+                                    <td style="${styles.td}">${item.deliveryDate ? formatDate(item.deliveryDate) : '—'}</td>
                                     <td style="${styles.td}">
                                         ${item.serviceName || item.itemName}
                                         ${item.refundReason ? `<br/><span style="font-size: 10px; color: #dc2626;">Reason: ${item.refundReason}</span>` : ''}
@@ -510,7 +516,7 @@ const PublicInvoiceDetail = () => {
                                         {services.map((item, i) => (
                                             <tr key={`service-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
                                                 <td className="py-2 px-3 text-slate-700">
-                                                    {i === 0 ? formattedDate : '—'}
+                                                    {item.deliveryDate ? formatDate(item.deliveryDate) : '—'}
                                                 </td>
                                                 <td className="py-2 px-3 text-slate-900 font-medium">{item.serviceName || item.itemName}</td>
                                                 <td className="text-center py-2 px-3">
@@ -543,7 +549,7 @@ const PublicInvoiceDetail = () => {
                                         {refundedItems.map((item, i) => (
                                             <tr key={`refund-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
                                                 <td className="py-2 px-3 text-slate-700">
-                                                    {i === 0 ? formattedDate : '—'}
+                                                    {item.deliveryDate ? formatDate(item.deliveryDate) : '—'}
                                                 </td>
                                                 <td className="py-2 px-3">
                                                     <div className="text-slate-900 font-medium">{item.serviceName || item.itemName}</div>
