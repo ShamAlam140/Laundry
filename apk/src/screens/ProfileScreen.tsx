@@ -1,16 +1,40 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StatusBar } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StatusBar, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 export default function ProfileScreen() {
     const { customer, logout } = useAuth();
+    const [showChangePassword, setShowChangePassword] = useState(false);
+    const [oldPassword, setOldPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [isChanging, setIsChanging] = useState(false);
 
     const handleLogout = () => {
         Alert.alert('Logout', 'Are you sure you want to logout?', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Logout', style: 'destructive', onPress: logout },
         ]);
+    };
+
+    const handleChangePassword = async () => {
+        if (!oldPassword || !newPassword) {
+            Alert.alert('Error', 'Please enter both old and new passwords.');
+            return;
+        }
+        setIsChanging(true);
+        try {
+            await api.put('/customer-auth/change-password', { oldPassword, newPassword });
+            Alert.alert('Success', 'Your password has been changed successfully.');
+            setShowChangePassword(false);
+            setOldPassword('');
+            setNewPassword('');
+        } catch (err: any) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to change password.');
+        } finally {
+            setIsChanging(false);
+        }
     };
 
     const fields = [
@@ -108,6 +132,51 @@ export default function ProfileScreen() {
                     ))}
                 </View>
 
+                {/* Security Card */}
+                <View
+                    style={{
+                        backgroundColor: '#121212',
+                        borderRadius: 24,
+                        padding: 20,
+                        marginBottom: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 3,
+                    }}
+                >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 16, letterSpacing: 1, textTransform: 'uppercase' }}>
+                        Security
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => setShowChangePassword(true)}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: 14,
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 12,
+                                backgroundColor: '#000000',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginRight: 14,
+                            }}
+                        >
+                            <Text style={{ fontSize: 18 }}>🔒</Text>
+                        </View>
+                        <Text style={{ color: '#f1f5f9', fontSize: 15, fontWeight: '600', flex: 1 }}>
+                            Change Password
+                        </Text>
+                        <Text style={{ color: '#64748b', fontSize: 18 }}>›</Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Help & Support Card */}
                 <View
                     style={{
@@ -181,6 +250,68 @@ export default function ProfileScreen() {
                     </View>
                 </TouchableOpacity>
             </ScrollView>
+
+            {/* Change Password Modal */}
+            <Modal
+                visible={showChangePassword}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowChangePassword(false)}
+            >
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' }}>
+                        <View style={{ backgroundColor: '#121212', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                                <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: '700' }}>Change Password</Text>
+                                <TouchableOpacity onPress={() => setShowChangePassword(false)}>
+                                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Text style={{ color: '#ffffff', fontSize: 16 }}>✕</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '600', marginBottom: 8 }}>OLD PASSWORD</Text>
+                                <TextInput
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#ffffff', borderRadius: 12, padding: 16, fontSize: 16 }}
+                                    secureTextEntry
+                                    placeholder="Enter old password"
+                                    placeholderTextColor="#475569"
+                                    value={oldPassword}
+                                    onChangeText={setOldPassword}
+                                />
+                            </View>
+
+                            <View style={{ marginBottom: 32 }}>
+                                <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '600', marginBottom: 8 }}>NEW PASSWORD</Text>
+                                <TextInput
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#ffffff', borderRadius: 12, padding: 16, fontSize: 16 }}
+                                    secureTextEntry
+                                    placeholder="Enter new password"
+                                    placeholderTextColor="#475569"
+                                    value={newPassword}
+                                    onChangeText={setNewPassword}
+                                />
+                            </View>
+
+                            <TouchableOpacity onPress={handleChangePassword} disabled={isChanging} activeOpacity={0.8}>
+                                <LinearGradient
+                                    colors={isChanging ? ['#475569', '#262626'] : ['#06b6d4', '#0ea5e9']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={{ paddingVertical: 16, borderRadius: 100, alignItems: 'center' }}
+                                >
+                                    {isChanging ? (
+                                        <ActivityIndicator color="#ffffff" />
+                                    ) : (
+                                        <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 16 }}>Change Password</Text>
+                                    )}
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </View>
     );
 }

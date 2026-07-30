@@ -118,6 +118,7 @@ exports.login = async (req, res, next) => {
                 address: customer.address,
                 customerType: customer.customerType,
                 isPremium: customer.isPremium,
+                mustChangePassword: customer.mustChangePassword,
             },
         });
     } catch (error) {
@@ -153,6 +154,66 @@ exports.updateProfile = async (req, res, next) => {
         });
 
         res.status(200).json({ success: true, data: customer });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Change password
+// @route   PUT /api/customer-auth/change-password
+// @access  Private (Customer)
+exports.changePassword = async (req, res, next) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide both old and new passwords',
+            });
+        }
+
+        const customer = await Customer.findById(req.customer._id).select('+password');
+
+        const isMatch = await customer.matchPassword(oldPassword);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid old password' });
+        }
+
+        customer.password = newPassword;
+        customer.mustChangePassword = false;
+        await customer.save();
+
+        const token = generateToken(customer._id);
+
+        res.status(200).json({ success: true, token, message: 'Password changed successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Forgot password - reset to default
+// @route   POST /api/customer-auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res, next) => {
+    try {
+        const { phone } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Please provide phone number' });
+        }
+
+        const customer = await Customer.findOne({ phone });
+        if (!customer) {
+            // We return success to prevent user enumeration
+            return res.status(200).json({ success: true, message: 'If an account exists, its password has been reset to default.' });
+        }
+
+        customer.password = 'cus123';
+        customer.mustChangePassword = true;
+        await customer.save();
+
+        res.status(200).json({ success: true, message: 'Your password has been successfully reset to the default password.' });
     } catch (error) {
         next(error);
     }

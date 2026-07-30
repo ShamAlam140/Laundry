@@ -12,6 +12,7 @@ interface Customer {
     customerType: string;
     isPremium?: boolean;
     notificationFrequency?: string;
+    mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
@@ -22,6 +23,7 @@ interface AuthContextType {
     login: (phone: string, password: string) => Promise<void>;
     register: (data: { name: string; phone: string; email: string; address?: string; password: string }) => Promise<void>;
     logout: () => Promise<void>;
+    setCustomer: (customer: Customer | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 login,
                 register,
                 logout,
+                setCustomer,
             }}
         >
             {children}

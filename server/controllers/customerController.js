@@ -169,7 +169,7 @@ exports.getCustomer = async (req, res, next) => {
 exports.createCustomer = async (req, res, next) => {
     try {
         const { name, phone, email, address, customerType, isPremium = false, customServices = [], notificationFrequency = 'none', creditDays } = req.body;
-        const customer = await Customer.create({ name, phone, email, address, customerType, isPremium, notificationFrequency, creditDays });
+        const customer = await Customer.create({ name, phone, email, address, customerType, isPremium, notificationFrequency, creditDays, password: 'cus123', mustChangePassword: true });
         const savedServices = await syncCustomerServices(customer, customServices);
 
         res.status(201).json({
@@ -309,7 +309,9 @@ exports.bulkImportCustomers = async (req, res, next) => {
                     customerType,
                     isPremium,
                     creditDays,
-                    notificationFrequency
+                    notificationFrequency,
+                    password: 'cus123',
+                    mustChangePassword: true
                 });
                 successCount++;
             } catch (createErr) {

@@ -18,11 +18,15 @@ import ProfileScreen from '../screens/ProfileScreen';
 import CreateOrderScreen from '../screens/CreateOrderScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
+import ForceChangePasswordScreen from '../screens/ForceChangePasswordScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+
 const AuthStack = createNativeStackNavigator();
 const MainTab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const OrderStack = createNativeStackNavigator();
 const InvoiceStack = createNativeStackNavigator();
+const ForcePasswordStack = createNativeStackNavigator();
 
 function HomeStackNavigator() {
     return (
@@ -93,7 +97,7 @@ function MainTabNavigator() {
 }
 
 export default function AppNavigator() {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading, customer } = useAuth();
 
     if (isLoading) {
         return (
@@ -108,7 +112,16 @@ export default function AppNavigator() {
             <AuthStack.Navigator screenOptions={{ headerShown: false }}>
                 <AuthStack.Screen name="Login" component={LoginScreen} />
                 <AuthStack.Screen name="Register" component={RegisterScreen} />
+                <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </AuthStack.Navigator>
+        );
+    }
+
+    if (customer?.mustChangePassword) {
+        return (
+            <ForcePasswordStack.Navigator screenOptions={{ headerShown: false }}>
+                <ForcePasswordStack.Screen name="ForceChangePassword" component={ForceChangePasswordScreen} />
+            </ForcePasswordStack.Navigator>
         );
     }
 
